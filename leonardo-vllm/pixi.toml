@@ -1,0 +1,16 @@
+[workspace]
+name = "uniqa-conversion-coach-runner-vllm"
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[tasks]
+validate-live = "./uniqa-pipeline validate-live"
+run-live = "./uniqa-pipeline run-live"
+
+[dependencies]
+python = ">=3.11,<3.13"
+
+[pypi-dependencies]
+playwright = ">=1.44"
+pytest = ">=8.0"
+vllm = ">=0.5"

@@ -282,6 +282,31 @@ def _click_tariff(page: Any, action: str) -> None:
         page.get_by_role("button", name="Weiter").click()
 
 
+def _safe_check(locator: Any) -> None:
+    try:
+        locator.check(force=True)
+        return
+    except Exception:
+        handle = locator.element_handle()
+        if handle is None:
+            raise
+        handle.evaluate(
+            """
+            (element) => {
+              if (element instanceof HTMLInputElement) {
+                element.checked = true;
+                element.dispatchEvent(new Event("input", { bubbles: true }));
+                element.dispatchEvent(new Event("change", { bubbles: true }));
+                return;
+              }
+              if (element instanceof HTMLElement) {
+                element.click();
+              }
+            }
+            """
+        )
+
+
 def _try_coach_interaction(page: Any, decision: PersonaDecision) -> str | None:
     try:
         text = page.evaluate(
@@ -363,7 +388,7 @@ def _execute_step_action(page: Any, *, step_id: str, action: str, profile: Sessi
             count = checkboxes.count()
             for index in range(count):
                 if not checkboxes.nth(index).is_checked():
-                    checkboxes.nth(index).check(force=True)
+                    _safe_check(checkboxes.nth(index))
                     break
         page.get_by_role("button", name="Weiter").click()
         return {"terminal": False, "element_key": "primary_continue"}

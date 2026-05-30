@@ -61,6 +61,10 @@ Common entrypoints:
 - `./uniqa-pipeline train-coach-ranker`
 - `./uniqa-pipeline evaluate --runner-mode validation`
 
+GPU-backed local LLM validation:
+
+- `sbatch leonardo/slurm_validate_live_vllm.sh`
+
 ## Job Order
 
 1. Run `leonardo/slurm_validate_live.sh` in `baseline` and `coach` mode for a few sessions.

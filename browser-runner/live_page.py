@@ -180,15 +180,16 @@ def derive_context(page: Any, entry: dict[str, Any], base_context: dict[str, Any
 
 
 def install_runner_shim(page: Any, *, preferred_session_id: str | None = None) -> None:
-    page.add_init_script(
-        """
-        ({ preferredSessionId }) => {
+    serialized_session = json.dumps(preferred_session_id)
+    script = """
+        (() => {{
+          const preferredSessionId = __PREFERRED_SESSION_ID__;
           window.__UNIQA_PREFERRED_SESSION_ID = preferredSessionId || undefined;
           window.__uniqaRunnerSessionStartedAt = Date.now();
-          window.__uniqaRunnerTelemetry = { events: [] };
-          const pushEvent = (type, target, extra = {}) => {
+          window.__uniqaRunnerTelemetry = {{ events: [] }};
+          const pushEvent = (type, target, extra = {{}}) => {{
             const element = target instanceof Element ? target.closest("button, input, textarea, select, [role='button'], [role='radio'], [role='checkbox']") || target : null;
-            const payload = {
+            const payload = {{
               ts: Date.now(),
               type,
               tag: element?.tagName?.toLowerCase() || null,
@@ -196,16 +197,17 @@ def install_runner_shim(page: Any, *, preferred_session_id: str | None = None) -
               ariaLabel: element?.getAttribute?.("aria-label") || null,
               text: (element?.textContent || "").replace(/\\s+/g, " ").trim().slice(0, 80),
               ...extra,
-            };
+            }};
             window.__uniqaRunnerTelemetry.events.push(payload);
-          };
+          }};
           document.addEventListener("click", (event) => pushEvent("click", event.target), true);
           document.addEventListener("change", (event) => pushEvent("change", event.target), true);
           document.addEventListener("input", (event) => pushEvent("input", event.target), true);
           document.addEventListener("pointerenter", (event) => pushEvent("pointerenter", event.target), true);
-        }
-        """,
-        {"preferredSessionId": preferred_session_id},
+        }})();
+        """.replace("__PREFERRED_SESSION_ID__", serialized_session)
+    page.add_init_script(
+        script,
     )
 
 
@@ -225,6 +227,43 @@ def dismiss_cookie_banner(page: Any) -> None:
                 return
         except Exception:
             continue
+    try:
+        clicked = page.evaluate(
+            """
+            () => {
+              const buttons = Array.from(document.querySelectorAll("unext-cookie-banner button, .cc__buttons button, button"));
+              const target = buttons.find((button) => {
+                const text = (button.textContent || "").replace(/\\s+/g, " ").trim().toLowerCase();
+                return text.includes("ablehnen") || text.includes("technisch notwendige");
+              });
+              if (target instanceof HTMLButtonElement) {
+                target.click();
+                return true;
+              }
+              return false;
+            }
+            """
+        )
+        if clicked:
+            page.wait_for_timeout(750)
+            return
+    except Exception:
+        pass
+    try:
+        page.evaluate(
+            """
+            () => {
+              const banner = document.querySelector("unext-cookie-banner");
+              if (banner) {
+                banner.remove();
+              }
+              document.querySelectorAll(".cc__backdrop, .cc__modal, .cc-window").forEach((node) => node.remove());
+            }
+            """
+        )
+        page.wait_for_timeout(250)
+    except Exception:
+        pass
 
 
 def generate_sv(day: int, month: int, year: int) -> str:

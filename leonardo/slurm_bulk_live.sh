@@ -17,6 +17,15 @@ if [[ -n "${LEONARDO_ENV_FILE:-}" ]]; then
   set +a
 fi
 
+if [[ -z "${PIXI_CACHE_DIR:-}" ]]; then
+  if [[ -w /scratch_local || ! -e /scratch_local ]]; then
+    export PIXI_CACHE_DIR="/scratch_local/pixi-cache-${USER}"
+  else
+    export PIXI_CACHE_DIR="/tmp/pixi-cache-${USER}"
+  fi
+fi
+mkdir -p "$PIXI_CACHE_DIR"
+
 if [[ -n "${VLLM_SERVE_CMD:-}" ]]; then
   eval "$VLLM_SERVE_CMD" > "artifacts/logs/vllm-${SLURM_JOB_ID:-local}.out" 2>&1 &
   export VLLM_PID=$!

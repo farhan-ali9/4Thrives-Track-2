@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gzip
 import json
 from dataclasses import dataclass
 from typing import Any, Callable
@@ -104,7 +105,11 @@ def _urllib_transport(method: str, url: str, payload: JsonDict | None, timeout: 
     request = Request(url, data=body, method=method, headers={"Content-Type": "application/json"})
     try:
         with urlopen(request, timeout=timeout) as response:
-            raw = response.read().decode("utf-8")
+            raw_bytes = response.read()
+            if response.headers.get("Content-Encoding", "").lower() == "gzip":
+                raw_bytes = gzip.decompress(raw_bytes)
+            charset = response.headers.get_content_charset("utf-8")
+            raw = raw_bytes.decode(charset)
     except HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
         raise CoachApiError(f"{method} {url} failed with HTTP {exc.code}: {detail}") from exc

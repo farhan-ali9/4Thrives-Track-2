@@ -25,7 +25,7 @@ class RunnerSafetyConfig:
         if mode == "bulk":
             return cls(mode="bulk", max_sessions=600, concurrency=3, min_think_ms=450, max_think_ms=2200, screenshots=False)
         if mode == "validation":
-            return cls()
+            return cls(max_sessions=12)
         if mode == "mock":
             return cls(mode="mock", max_sessions=3, concurrency=1, screenshots=False)
         raise ValueError(f"Unsupported run mode: {mode}")

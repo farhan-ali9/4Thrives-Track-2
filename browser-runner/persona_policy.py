@@ -133,7 +133,7 @@ def load_personas(persona_dir: Path | None = None) -> dict[str, PersonaPolicy]:
     root = persona_dir or Path(__file__).resolve().parents[1] / "personas"
     personas = {}
     for path in sorted(root.glob("*.json")):
-        if path.name == "variants.json":
+        if path.name == "variants.json" or path.name.startswith("._"):
             continue
         policy = PersonaPolicy.from_file(path)
         personas[policy.persona_id] = policy

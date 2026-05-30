@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import gzip
 import importlib.util
+import io
 import sys
 import unittest
 from pathlib import Path
+from email.message import Message
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("backend_client", ROOT / "browser-runner" / "backend_client.py")
@@ -50,6 +53,32 @@ class BackendClientTests(unittest.TestCase):
         self.assertTrue(calls[2][1].endswith("/api/v2/exposures"))
         self.assertTrue(calls[3][1].endswith("/api/v2/outcomes"))
         self.assertTrue(calls[4][1].endswith("/api/v2/sessions/sess_1"))
+
+    def test_gzip_response_is_decoded(self):
+        payload = gzip.compress(b'{"ok":true}')
+
+        class FakeResponse:
+            def __init__(self):
+                self.headers = Message()
+                self.headers["Content-Encoding"] = "gzip"
+                self.headers["Content-Type"] = "application/json; charset=utf-8"
+
+            def read(self):
+                return payload
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+        original = module.urlopen
+        module.urlopen = lambda request, timeout=0: FakeResponse()
+        try:
+            parsed = module._urllib_transport("GET", "http://backend.test/api/v2/sessions/sess_1", None, 3.0)
+        finally:
+            module.urlopen = original
+        self.assertEqual(parsed, {"ok": True})
 
 
 if __name__ == "__main__":
