@@ -10,3 +10,4 @@ venv/
 
 coach_sim/results/
 *.log
+.DS_Store
