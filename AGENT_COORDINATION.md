@@ -212,7 +212,7 @@ Do not edit:
 * backend/*
 * database migrations unless agreed with Farhan
 
-Status: Trace validation, reporting, and dataset quality checks implemented locally; coordination update ready to share
+Status: Baseline/rule-based experiment orchestration implemented locally; coordination update ready to share
 
 Files currently being edited:
 
@@ -241,8 +241,10 @@ Completed files:
 * evaluation/metrics.py
 * evaluation/compare_modes.py
 * evaluation/reports.py
+* evaluation/run_experiment.py
 * evaluation/tests/test_metrics.py
 * evaluation/tests/test_reports.py
+* evaluation/tests/test_run_experiment.py
 * training/build_dataset.py
 * training/train_ranker.py
 * training/evaluate_ranker.py
@@ -256,13 +258,14 @@ Completed files:
 * leonardo/slurm_train.sh
 * scripts/run_browser_validation.sh
 * scripts/run_mock_evaluation.sh
+* scripts/run_evaluation_experiment.sh
 * docs/evaluation/README.md
 * docs/training/README.md
 
-Last update: 2026-05-30 15:29 CEST
+Last update: 2026-05-30 15:33 CEST
 
 Notes:
-Andrii implemented the first local scaffold for persona policies, safe mock/live runner entry points, replay, metrics, trace-to-dataset, simple post-trace ranker training, Leonardo batch docs/scripts, and focused unit tests. Follow-up expansion added classified runner failures, batch `failure_log` and `circuit_breaker` summaries, explicit backend/selector failure tests, and metrics for advisor-routing correctness, conversion by intention, persona-step drop-off, intervention acceptance/dismiss/annoyance, precision/recall, selector drift, backend timeout, and inference latency. Latest slice added local/backend-export trace validation, validation CLI, markdown report generation, dataset quality checks, and tests for those gates. Verified with `python3 -m unittest discover -s browser-runner/tests -p 'test_*.py'`, `python3 -m unittest discover -s evaluation/tests -p 'test_*.py'`, `python3 -m unittest discover -s training/tests -p 'test_*.py'`, `python3 -m unittest discover -s replay/tests -p 'test_*.py'`, mock batch smoke, trace validation smoke, dataset build smoke, dataset quality smoke, compare/report smoke, replay smoke, ranker training smoke, and ranker evaluation smoke. David: live validation will need `EXTENSION_DIST` pointing at the built extension and stable live selectors/render signals; origin/david-branch still only differs by coordination status, so no implementation changes were integrated. Farhan: dataset builder expects trace events with `derived_context.intervention_kind`, `runner_metadata`, and terminal outcomes; origin/Farhan-Branch still matched the agents-spec commit at 15:26 CEST.
+Andrii implemented the first local scaffold for persona policies, safe mock/live runner entry points, replay, metrics, trace-to-dataset, simple post-trace ranker training, Leonardo batch docs/scripts, and focused unit tests. Follow-up expansion added classified runner failures, batch `failure_log` and `circuit_breaker` summaries, explicit backend/selector failure tests, and metrics for advisor-routing correctness, conversion by intention, persona-step drop-off, intervention acceptance/dismiss/annoyance, precision/recall, selector drift, backend timeout, and inference latency. Trace validation slice added local/backend-export trace validation, validation CLI, markdown report generation, dataset quality checks, and tests for those gates. Latest slice added `evaluation/run_experiment.py` plus `scripts/run_evaluation_experiment.sh` to create baseline/rule_based/trainable experiment folders, per-mode manifests, and a baseline-vs-rule report. Verified with `python3 -m unittest discover -s browser-runner/tests -p 'test_*.py'`, `python3 -m unittest discover -s evaluation/tests -p 'test_*.py'`, `python3 -m unittest discover -s training/tests -p 'test_*.py'`, `python3 -m unittest discover -s replay/tests -p 'test_*.py'`, experiment CLI smoke, baseline/rule trace validation smoke, compare/report smoke, mock batch smoke, dataset build smoke, dataset quality smoke, replay smoke, ranker training smoke, and ranker evaluation smoke. David: live validation will need `EXTENSION_DIST` pointing at the built extension and stable live selectors/render signals; origin/david-branch moved to a Step 7 coordination update at 15:31 CEST but still only changed coordination status, so no implementation changes were integrated. Farhan: dataset builder expects trace events with `derived_context.intervention_kind`, `runner_metadata`, and terminal outcomes; origin/Farhan-Branch still matched the agents-spec commit at 15:31 CEST.
 
 ---
 
