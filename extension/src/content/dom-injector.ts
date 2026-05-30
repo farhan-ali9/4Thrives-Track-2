@@ -8,6 +8,9 @@ import type {
   ResolvedStep,
 } from "@/shared/contracts";
 import { queryFirst } from "@/shared/page-map";
+import { createLogger } from "@/shared/logger";
+
+const log = createLogger("dom-injector");
 
 const ROOT_ID = "uniqa-conversion-coach-root";
 
@@ -617,13 +620,30 @@ export class DomInjector {
       placement: displayed[0]?.placement ?? null,
       renderState: displayed.length > 0 ? "rendered" : "idle",
     });
-    return displayed.filter((action) => {
+    if (actions.length > displayed.length) {
+      log.debug("Rendering one card at a time; extra actions deferred", {
+        received: actions.length,
+        rendered: displayed.length,
+      });
+    }
+    const fresh = displayed.filter((action) => {
       if (this.impressed.has(action.id)) {
         return false;
       }
       this.impressed.add(action.id);
       return true;
     });
+    if (fresh.length < displayed.length) {
+      log.debug("Some rendered actions were already impressed this page load", {
+        deduped: displayed.length - fresh.length,
+      });
+    }
+    log.debug("Card mounted in shadow DOM", {
+      cardCount: displayed.length,
+      placement: displayed[0]?.placement ?? null,
+      step: step?.pageStepId ?? null,
+    });
+    return fresh;
   }
 
   updateStatus(status: CoachApiStatus): void {
@@ -1051,6 +1071,10 @@ export class DomInjector {
         node.style.top = "16px";
         node.style.left = "16px";
         this.layoutFallback = "missing_anchor";
+        log.warn("Anchor not found for placement; using top-left fallback", {
+          placement,
+          step: this.currentStep?.pageStepId ?? null,
+        });
         continue;
       }
 

@@ -8,6 +8,9 @@ import { CoachClient } from "@/background/coach-client";
 import { FeatherlessChatClient } from "@/background/featherless-chat-client";
 import { UniqaEventOrchestrator } from "@/background/orchestrator";
 import { ChromeStorageAdapter, UniqaStorage } from "@/background/storage";
+import { createLogger } from "@/shared/logger";
+
+const log = createLogger("background");
 
 type RuntimeMessage =
   | {
@@ -43,7 +46,10 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
     void orchestrator.handleEvent(message.event)
       .then(sendResponse)
       .catch((error) => {
-        console.error("[UNIQA Coach] Event handling failed.", error);
+        log.error("Event handling failed", {
+          error: error instanceof Error ? error.message : String(error),
+          type: message.event?.type,
+        });
         sendResponse({
           actions: [],
           apiStatus: {
@@ -63,7 +69,9 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
     void chatClient.chat(message.request)
       .then(sendResponse)
       .catch((error) => {
-        console.error("[UNIQA Coach] Chat failed.", error);
+        log.error("Chat failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
         sendResponse({
           error: "chat_failed",
           message: {
@@ -83,6 +91,11 @@ async function handleInit(
   tabId: number,
 ): Promise<RuntimeInitResponse> {
   const session = await storage.ensureSession(tabId, message.url, message.preferredSessionId);
+  log.info("Session initialized", {
+    sessionId: session.sessionId,
+    tabId,
+    url: message.url,
+  });
   return {
     chatModel: chatClient.getModelName(),
     chatModelOptions: chatClient.getModelOptions(),

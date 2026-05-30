@@ -5,6 +5,9 @@ import type {
   NormalizedEvent,
   SignalKind,
 } from "@/shared/contracts";
+import { createLogger } from "@/shared/logger";
+
+const log = createLogger("coach-client");
 
 const DEFAULT_ORIGIN = (
   import.meta.env?.VITE_COACH_API_ORIGIN ?? "http://127.0.0.1:8787"
@@ -31,6 +34,12 @@ export class CoachClient {
   ) {}
 
   async evaluate(input: CoachEvaluationInput): Promise<CoachEvaluationResult> {
+    log.debug("POST coach event", {
+      endpoint: this.primaryEndpoint,
+      eventType: input.event.type,
+      signals: input.signals,
+      stepId: input.event.pageStepId,
+    });
     try {
       const response = await this.fetchImpl(this.primaryEndpoint, {
         body: JSON.stringify(buildV2EventPayload(input.event, input.signals)),
@@ -41,6 +50,10 @@ export class CoachClient {
       });
 
       if (response.status === 404 || response.status === 405) {
+        log.warn("Primary v2 endpoint unavailable; falling back to legacy", {
+          endpoint: this.primaryEndpoint,
+          status: response.status,
+        });
         return await this.evaluateLegacy(input.fallbackRequest);
       }
 
@@ -58,7 +71,10 @@ export class CoachClient {
         policyVersion: null,
         state: "connected",
       };
-      console.info("[UNIQA Coach] API connected", apiStatus);
+      log.info("Coach API connected (v2 events)", {
+        actions: parsed.actions?.length ?? 0,
+        endpoint: this.primaryEndpoint,
+      });
       return {
         apiStatus,
         response: {
@@ -76,7 +92,10 @@ export class CoachClient {
         policyVersion: null,
         state: "error",
       };
-      console.warn("[UNIQA Coach] API error", apiStatus);
+      log.error("Coach API request failed", {
+        endpoint: this.primaryEndpoint,
+        message,
+      });
       return {
         apiStatus,
         response: {
@@ -109,7 +128,11 @@ export class CoachClient {
       policyVersion: parsed.policyVersion,
       state: "connected",
     };
-    console.info("[UNIQA Coach] API connected", apiStatus);
+    log.info("Coach API connected (legacy evaluate)", {
+      actions: parsed.actions?.length ?? 0,
+      endpoint: this.legacyEndpoint,
+      policyVersion: parsed.policyVersion,
+    });
     return {
       apiStatus,
       response: parsed,

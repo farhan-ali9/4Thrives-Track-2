@@ -9,9 +9,12 @@ import type {
   SignalKind,
   StepRuntimeState,
 } from "@/shared/contracts";
+import { createLogger } from "@/shared/logger";
 import { CoachClient } from "./coach-client";
 import { deriveSignals } from "./signal-detector";
 import { UniqaStorage } from "./storage";
+
+const log = createLogger("orchestrator");
 
 const DEFAULT_API_STATUS: CoachApiStatus = {
   endpoint:
@@ -39,20 +42,46 @@ export class UniqaEventOrchestrator {
       const signals = deriveSignals(event, updatedStepState, recentEvents);
 
       if (!shouldEvaluateCoach(event, signals)) {
+        log.debug("Skipping coach evaluation (no trigger)", {
+          pageStepId: event.pageStepId,
+          signals,
+          type: event.type,
+        });
         return { actions: [], apiStatus: DEFAULT_API_STATUS, signals };
       }
 
+      log.debug("Evaluating coach request", {
+        pageStepId: event.pageStepId,
+        signals,
+        type: event.type,
+      });
       const coachRequest = this.buildCoachRequest(event, recentEvents, updatedStepState, signals);
       const evaluation = await this.coachClient.evaluate({
         event,
         fallbackRequest: coachRequest,
         signals,
       });
+      const rawActionCount = evaluation.response.actions.length;
       const actions = await this.filterActionsByCooldown(
         event.sessionId,
         event.ts,
         evaluation.response.actions,
       );
+
+      if (rawActionCount > 0 && actions.length === 0) {
+        log.info("All coach actions suppressed by cooldown", {
+          pageStepId: event.pageStepId,
+          rawActionCount,
+        });
+      } else {
+        log.info("Coach evaluation complete", {
+          apiState: evaluation.apiStatus.state,
+          delivered: actions.length,
+          pageStepId: event.pageStepId,
+          rawActionCount,
+          source: evaluation.response.source,
+        });
+      }
 
       return {
         actions,
