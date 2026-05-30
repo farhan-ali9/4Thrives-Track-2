@@ -15,7 +15,7 @@ import type {
   StoreV2EventInput,
   UpsertAdminUserInput,
   V2EventRecord,
-} from "./repository";
+} from "./repository.js";
 
 export class PrismaCoachRepository implements CoachRepository {
   constructor(private readonly prisma: PrismaClient) {}

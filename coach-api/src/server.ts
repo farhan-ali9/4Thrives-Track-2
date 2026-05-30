@@ -1,7 +1,7 @@
 import { PrismaClient } from "@prisma/client";
-import { createApp } from "./app";
-import { getConfigFromEnv } from "./config";
-import { PrismaCoachRepository } from "./prisma-repository";
+import { createApp } from "./app.js";
+import { getConfigFromEnv } from "./config.js";
+import { PrismaCoachRepository } from "./prisma-repository.js";
 
 const prisma = new PrismaClient();
 const config = getConfigFromEnv();

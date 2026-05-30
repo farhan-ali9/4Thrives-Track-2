@@ -1,7 +1,7 @@
 import { promisify } from "node:util";
 import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
 import type { FastifyReply, FastifyRequest } from "fastify";
-import type { AdminUserRecord, CoachRepository } from "./repository";
+import type { AdminUserRecord, CoachRepository } from "./repository.js";
 
 const scryptAsync = promisify(scrypt);
 export const SESSION_COOKIE_NAME = "conversion_coach_admin";

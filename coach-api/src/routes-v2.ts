@@ -6,18 +6,18 @@ import type { FastifyInstance } from "fastify";
 import { seedPolicy } from "@uniqa-conversion-coach/shared";
 import type { CoachAction, NormalizedEvent } from "@uniqa-conversion-coach/shared/contracts";
 import type { CoachPolicyDocument } from "@uniqa-conversion-coach/shared/policy";
-import { evaluateCoachRequest } from "./policy-engine";
-import { applyHardGuardrails } from "./guardrails";
+import { evaluateCoachRequest } from "./policy-engine.js";
+import { applyHardGuardrails } from "./guardrails.js";
 import {
   reconstructSessionState,
   computeRiskScore,
   deriveSignalKinds,
-} from "./session-state";
+} from "./session-state.js";
 import type {
   CoachRepository,
   PolicyVersionRecord,
   V2EventRecord,
-} from "./repository";
+} from "./repository.js";
 
 // ── Intervention catalog for advisor_handoff action ───────────────────────────
 

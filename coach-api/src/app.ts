@@ -8,18 +8,21 @@ import {
   seedPolicy,
   type CoachPolicyDocument,
 } from "@uniqa-conversion-coach/shared";
-import type { CoachRequest, CoachResponse } from "@uniqa-conversion-coach/shared/contracts";
+import type {
+  CoachRequest,
+  CoachResponse,
+} from "@uniqa-conversion-coach/shared/contracts";
 import {
   clearSessionCookie,
   hashPassword,
   readAuthenticatedUser,
   setSessionCookie,
   verifyPassword,
-} from "./auth";
-import type { AppConfig } from "./config";
-import { evaluateCoachRequest } from "./policy-engine";
-import type { CoachRepository, PolicyVersionRecord } from "./repository";
-import { registerV2Routes } from "./routes-v2";
+} from "./auth.js";
+import type { AppConfig } from "./config.js";
+import { evaluateCoachRequest } from "./policy-engine.js";
+import type { CoachRepository, PolicyVersionRecord } from "./repository.js";
+import { registerV2Routes } from "./routes-v2.js";
 
 interface CreateAppOptions {
   config: AppConfig;
@@ -28,7 +31,9 @@ interface CreateAppOptions {
   seedPolicyDocument?: CoachPolicyDocument;
 }
 
-export async function createApp(options: CreateAppOptions): Promise<FastifyInstance> {
+export async function createApp(
+  options: CreateAppOptions,
+): Promise<FastifyInstance> {
   const app = Fastify({
     logger: options.logger ?? false,
   });
@@ -164,7 +169,8 @@ export async function createApp(options: CreateAppOptions): Promise<FastifyInsta
     } catch (error) {
       return reply.code(400).send({
         error: "invalid_policy",
-        message: error instanceof Error ? error.message : "Unknown validation error",
+        message:
+          error instanceof Error ? error.message : "Unknown validation error",
       });
     }
   });
@@ -193,7 +199,9 @@ export async function createApp(options: CreateAppOptions): Promise<FastifyInsta
         });
       }
 
-      const existing = await options.repository.getPolicyVersionById(request.params.id);
+      const existing = await options.repository.getPolicyVersionById(
+        request.params.id,
+      );
       if (!existing) {
         return reply.code(404).send({
           error: "policy_not_found",
@@ -247,7 +255,9 @@ async function ensureBootstrapState(
   }
 }
 
-async function getRequiredActivePolicy(repository: CoachRepository): Promise<PolicyVersionRecord> {
+async function getRequiredActivePolicy(
+  repository: CoachRepository,
+): Promise<PolicyVersionRecord> {
   const activePolicy = await repository.getActivePolicyVersion();
   if (!activePolicy) {
     throw new Error("No active policy configured");
@@ -255,7 +265,11 @@ async function getRequiredActivePolicy(repository: CoachRepository): Promise<Pol
   return activePolicy;
 }
 
-function serializeUser(user: { id: string; email: string; name: string | null }) {
+function serializeUser(user: {
+  id: string;
+  email: string;
+  name: string | null;
+}) {
   return {
     email: user.email,
     id: user.id,

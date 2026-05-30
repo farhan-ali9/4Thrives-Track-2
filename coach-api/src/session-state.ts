@@ -1,7 +1,7 @@
 // Session state reconstruction from v2 event history.
 // Tracks what the backend knows about the user's journey without DOM access.
 
-import type { V2EventRecord } from "./repository";
+import type { V2EventRecord } from "./repository.js";
 
 const RECENT_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 const MAX_RECENT_EVENTS = 30;
