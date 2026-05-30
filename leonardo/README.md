@@ -32,6 +32,24 @@ Submit-time variables such as `EXPERIMENT_ID`, `RUNNER_EXECUTION_MODE`, and `RUN
 - `leonardo/slurm_train.sh`: trains the user-policy model and coach ranker.
 - `leonardo/slurm_evaluation_experiment.sh`: evaluation experiment over baseline, rule-based, and trainable modes.
 
+## Local Alternative
+
+You do not need Leonardo for the simulation/training loop. For a laptop run, use the root `.env` with:
+
+```text
+FEATHERLESS_API_KEY=...
+LLM_API_URL=https://api.featherless.ai/v1/chat/completions
+LLM_MODEL=MihaiPopa-1/Qwen-3-0.6B-Claude-4.7-Opus-Distilled
+```
+
+Then run:
+
+```bash
+npm run pipeline:local
+```
+
+That command uses Featherless for the persona LLM and writes to `artifacts/local-training-pipeline/latest` without Slurm, Pixi, or vLLM.
+
 ## Output Layout
 
 ```text

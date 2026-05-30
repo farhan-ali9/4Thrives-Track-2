@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "browser-runner"))
 sys.path.insert(0, str(ROOT / "training"))
 sys.path.insert(0, str(ROOT / "evaluation"))
+sys.path.insert(0, str(ROOT / "replay"))
 
 from build_live_datasets import build_live_datasets
 from check_user_policy_dataset import check_user_policy_rows
@@ -23,7 +24,13 @@ from train_ranker import train_frequency_ranker
 from train_user_policy import train_user_policy
 from evaluate_ranker import evaluate_ranker
 from evaluate_user_policy import evaluate_user_policy
+from metrics import compare_dropoff_reduction, compute_metrics
+from run_batch import PERSONA_MATRIX
+from trace_store import load_traces
 
+
+FEATHERLESS_CHAT_COMPLETIONS_URL = "https://api.featherless.ai/v1/chat/completions"
+DEFAULT_FEATHERLESS_MODEL = "MihaiPopa-1/Qwen-3-0.6B-Claude-4.7-Opus-Distilled"
 
 RUN_MODE_POLICY = {
     "baseline": ("baseline", "baseline-no-coach"),
@@ -40,6 +47,140 @@ LEONARDO_JOB_SCRIPTS = {
     "train": ROOT / "leonardo" / "slurm_train.sh",
     "evaluate": ROOT / "leonardo" / "slurm_evaluation_experiment.sh",
 }
+
+
+def _parse_env_line(line: str) -> tuple[str, str] | None:
+    stripped = line.strip()
+    if not stripped or stripped.startswith("#") or "=" not in stripped:
+        return None
+    key, value = stripped.split("=", 1)
+    key = key.strip()
+    value = value.strip()
+    if not key:
+        return None
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+        value = value[1:-1]
+    return key, value
+
+
+def load_env_file(path: Path = ROOT / ".env") -> dict[str, str]:
+    if not path.exists():
+        _apply_local_llm_defaults()
+        return {}
+    loaded: dict[str, str] = {}
+    for line in path.read_text().splitlines():
+        parsed = _parse_env_line(line)
+        if not parsed:
+            continue
+        key, value = parsed
+        loaded[key] = value
+        os.environ.setdefault(key, value)
+    _apply_local_llm_defaults()
+    return loaded
+
+
+def _apply_local_llm_defaults() -> None:
+    os.environ.setdefault("LLM_API_URL", os.getenv("LLM_GATEWAY_URL", FEATHERLESS_CHAT_COMPLETIONS_URL))
+    os.environ.setdefault(
+        "LLM_MODEL",
+        os.getenv("LLM_DEFAULT_MODEL", os.getenv("VITE_FEATHERLESS_MODEL", DEFAULT_FEATHERLESS_MODEL)),
+    )
+
+
+def _env_int(name: str, default: int) -> int:
+    value = os.getenv(name)
+    if not value:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
+def _env_optional_int(name: str) -> int | None:
+    value = os.getenv(name)
+    if not value:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
+def _session_count(*, explicit_sessions: int | None, persona_runs: int) -> int:
+    if explicit_sessions is not None:
+        return explicit_sessions
+    return len(PERSONA_MATRIX) * persona_runs
+
+
+def _comparison_markdown(*, baseline: dict[str, object], coach: dict[str, object], delta: dict[str, object]) -> str:
+    lines = [
+        "# Local Training Pipeline Overview",
+        "",
+        "| Metric | Baseline | Coach | Delta |",
+        "| --- | ---: | ---: | ---: |",
+    ]
+    metric_pairs = [
+        ("sessions", "Sessions"),
+        ("abandonment_rate", "Drop-off rate"),
+        ("online_conversion_rate", "Online conversion rate"),
+        ("advisor_handoff_count", "Advisor handoffs"),
+        ("s4_initial_price_dropoff", "S4 initial-price drop-offs"),
+        ("s5_addon_dropoff", "S5 add-on drop-offs"),
+        ("s7_final_price_dropoff", "S7 final-price drop-offs"),
+        ("intervention_count", "Coach interventions"),
+        ("trace_completeness_rate", "Trace completeness"),
+        ("step_detection_success_rate", "Step detection success"),
+    ]
+    delta_by_metric = {
+        "online_conversion_rate": delta.get("conversion_rate_uplift", 0.0),
+        "s4_initial_price_dropoff": delta.get("s4_dropoff_reduction", 0),
+        "s5_addon_dropoff": delta.get("s5_dropoff_reduction", 0),
+        "s7_final_price_dropoff": delta.get("s7_dropoff_reduction", 0),
+    }
+    for key, label in metric_pairs:
+        lines.append(f"| {label} | {_format_metric(baseline.get(key))} | {_format_metric(coach.get(key))} | {_format_metric(delta_by_metric.get(key, ''))} |")
+    lines.extend([
+        "",
+        "## Persona Conversion",
+        "",
+        f"- Baseline: `{baseline.get('conversion_by_persona', {})}`",
+        f"- Coach: `{coach.get('conversion_by_persona', {})}`",
+        "",
+        "## Notes",
+        "",
+        "- Drop-off rate is `abandoned / sessions`.",
+        "- Positive conversion-rate delta means coach improved online conversion.",
+        "- Positive S4/S5/S7 drop-off reduction means the coach had fewer drop-offs than baseline at that step.",
+    ])
+    return "\n".join(lines) + "\n"
+
+
+def _format_metric(value: object) -> str:
+    if isinstance(value, float):
+        return f"{value:.3f}"
+    if value is None:
+        return ""
+    return str(value)
+
+
+def _write_local_overview(*, traces_dir: Path, output_root: Path) -> dict[str, object]:
+    traces = load_traces(traces_dir)
+    baseline_traces = [trace for trace in traces if trace.get("run_mode") == "baseline" or trace.get("metadata", {}).get("run_mode") == "baseline"]
+    coach_traces = [trace for trace in traces if trace.get("run_mode") == "coach" or trace.get("metadata", {}).get("run_mode") == "coach"]
+    baseline = compute_metrics(baseline_traces)
+    coach = compute_metrics(coach_traces)
+    delta = compare_dropoff_reduction(baseline, coach)
+    overview = {
+        "baseline": baseline,
+        "coach": coach,
+        "delta": delta,
+        "baseline_trace_count": len(baseline_traces),
+        "coach_trace_count": len(coach_traces),
+    }
+    (output_root / "overview.json").write_text(json.dumps(overview, indent=2, sort_keys=True, default=str))
+    (output_root / "overview.md").write_text(_comparison_markdown(baseline=baseline, coach=coach, delta=delta))
+    return overview
 
 
 @contextmanager
@@ -125,6 +266,106 @@ def cmd_evaluate(args: argparse.Namespace) -> dict[str, object]:
     )
 
 
+def cmd_local_full(args: argparse.Namespace) -> dict[str, object]:
+    if args.env_file:
+        load_env_file(args.env_file)
+    _apply_local_llm_defaults()
+    if not (os.getenv("FEATHERLESS_API_KEY") or os.getenv("OPENAI_API_KEY") or os.getenv("VLLM_API_KEY")):
+        raise SystemExit(
+            "Missing FEATHERLESS_API_KEY. Add it to .env or export it before running the local training pipeline."
+        )
+
+    output_root = args.output_root
+    traces_dir = output_root / "browser-runs"
+    datasets_dir = output_root / "datasets"
+    training_dir = output_root / "training"
+    evaluation_dir = output_root / "evaluation-experiments"
+    baseline_sessions = _session_count(explicit_sessions=args.baseline_sessions, persona_runs=args.persona_runs)
+    coach_sessions = _session_count(explicit_sessions=args.coach_sessions, persona_runs=args.persona_runs)
+
+    baseline = _run_live_batch(
+        execution_mode="baseline",
+        runner_mode=args.runner_mode,
+        experiment_id=f"{args.experiment_id}-baseline",
+        sessions=baseline_sessions,
+        output_dir=traces_dir,
+    )
+    coach = _run_live_batch(
+        execution_mode="coach",
+        runner_mode=args.runner_mode,
+        experiment_id=f"{args.experiment_id}-coach",
+        sessions=coach_sessions,
+        output_dir=traces_dir,
+    )
+
+    user_dataset = datasets_dir / "user-policy.jsonl"
+    coach_dataset = datasets_dir / "coach-ranking.jsonl"
+    dataset_summary = build_live_datasets(
+        traces_path=traces_dir,
+        user_output=user_dataset,
+        coach_output=coach_dataset,
+        user_dataset_phase=args.user_dataset_phase,
+        coach_dataset_phase=args.coach_dataset_phase,
+    )
+    user_quality = check_user_policy_rows(
+        [json.loads(line) for line in user_dataset.read_text().splitlines() if line.strip()]
+    )
+    coach_quality = check_dataset(load_jsonl(coach_dataset))
+    if not user_quality["valid"]:
+        raise SystemExit(json.dumps({"user_policy_check": user_quality}, indent=2, sort_keys=True))
+    if not coach_quality["valid"]:
+        raise SystemExit(json.dumps({"coach_ranking_check": coach_quality}, indent=2, sort_keys=True))
+
+    overview = _write_local_overview(traces_dir=traces_dir, output_root=output_root)
+
+    user_model = training_dir / "user-policy.json"
+    coach_model = training_dir / "frequency-ranker.json"
+    user_training = train_user_policy(user_dataset, user_model)
+    user_training["evaluation"] = evaluate_user_policy(user_dataset, user_model)
+    if coach_quality["rows"] > 0:
+        coach_training = train_frequency_ranker(coach_dataset, coach_model)
+        coach_training["evaluation"] = evaluate_ranker(coach_dataset, coach_model)
+    else:
+        coach_training = {
+            "skipped": True,
+            "reason": "No coach-ranking examples were generated. Run more coached sessions or verify backend decision/exposure capture.",
+            "dataset": str(coach_dataset),
+        }
+
+    evaluation = None
+    if not args.skip_evaluate and coach_quality["rows"] > 0:
+        evaluation = run_experiment(
+            experiment_id=f"{args.experiment_id}-evaluation",
+            runner_mode=args.evaluation_runner_mode,
+            sessions_per_mode=args.evaluation_sessions_per_mode,
+            output_root=evaluation_dir,
+            evaluation_modes=tuple(item.strip() for item in args.evaluation_modes.split(",") if item.strip()),
+            trainable_model=coach_model,
+        )
+    elif not args.skip_evaluate:
+        evaluation = {
+            "skipped": True,
+            "reason": "Evaluation with trainable mode requires a trained coach ranker, but coach-ranking examples were empty.",
+        }
+
+    summary = {
+        "mode": "local-full",
+        "llm_api_url": os.getenv("LLM_API_URL"),
+        "llm_model": os.getenv("LLM_MODEL"),
+        "output_root": str(output_root),
+        "traces_dir": str(traces_dir),
+        "baseline": baseline,
+        "coach": coach,
+        "datasets": {**dataset_summary, "user_policy_check": user_quality, "coach_ranking_check": coach_quality},
+        "overview": overview,
+        "training": {"user_policy": user_training, "coach_ranker": coach_training},
+        "evaluation": evaluation,
+    }
+    output_root.mkdir(parents=True, exist_ok=True)
+    (output_root / "pipeline_summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True, default=str))
+    return summary
+
+
 def cmd_leonardo_submit(args: argparse.Namespace) -> dict[str, object]:
     script = LEONARDO_JOB_SCRIPTS[args.job]
     if not script.exists():
@@ -141,7 +382,7 @@ def cmd_leonardo_submit(args: argparse.Namespace) -> dict[str, object]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="CLI entrypoint for live UNIQA simulation, dataset building, training, and Leonardo submission")
+    parser = argparse.ArgumentParser(description="CLI entrypoint for live UNIQA simulation, dataset building, training, local runs, and Leonardo submission")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     validate = subparsers.add_parser("validate-live", help="Run a capped live validation batch")
@@ -185,6 +426,22 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--trainable-model", type=Path, default=Path("artifacts/training/frequency-ranker.json"))
     evaluate.set_defaults(func=cmd_evaluate)
 
+    local_full = subparsers.add_parser("local-full", help="Run the local Featherless-backed simulation/training/evaluation loop")
+    local_full.add_argument("--env-file", type=Path, default=Path(".env"))
+    local_full.add_argument("--experiment-id", default=os.getenv("EXPERIMENT_ID", "local-training"))
+    local_full.add_argument("--runner-mode", choices=("validation", "bulk"), default=os.getenv("RUNNER_MODE", "validation"))
+    local_full.add_argument("--persona-runs", type=int, default=_env_int("PERSONA_RUNS", 1), help="How many times to run every persona/intention pair per mode. One run equals 12 sessions per mode.")
+    local_full.add_argument("--baseline-sessions", type=int, default=_env_optional_int("BASELINE_SESSIONS"))
+    local_full.add_argument("--coach-sessions", type=int, default=_env_optional_int("COACH_SESSIONS"))
+    local_full.add_argument("--output-root", type=Path, default=Path(os.getenv("PIPELINE_OUTPUT_ROOT", "artifacts/local-training-pipeline/latest")))
+    local_full.add_argument("--user-dataset-phase", default="behavioral_imitation_local_featherless")
+    local_full.add_argument("--coach-dataset-phase", default="coach_ranking_local_featherless")
+    local_full.add_argument("--skip-evaluate", action="store_true", default=os.getenv("SKIP_EVALUATE", "0") == "1")
+    local_full.add_argument("--evaluation-runner-mode", choices=("mock", "validation", "bulk"), default=os.getenv("EVALUATION_RUNNER_MODE", "mock"))
+    local_full.add_argument("--evaluation-sessions-per-mode", type=int, default=_env_int("EVALUATION_SESSIONS_PER_MODE", 6))
+    local_full.add_argument("--evaluation-modes", default=os.getenv("EVALUATION_MODES", "baseline,rule_based,trainable"))
+    local_full.set_defaults(func=cmd_local_full)
+
     leonardo = subparsers.add_parser("leonardo-submit", help="Submit a prepared Slurm job on Leonardo")
     leonardo.add_argument("--job", choices=tuple(LEONARDO_JOB_SCRIPTS), required=True)
     leonardo.add_argument("--env-file", type=Path)
@@ -195,6 +452,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    load_env_file(ROOT / ".env")
     parser = build_parser()
     args = parser.parse_args()
     result = args.func(args)

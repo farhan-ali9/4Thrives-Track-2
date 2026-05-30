@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import time
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable
 
@@ -65,7 +67,7 @@ def run_batch(
     config = BrowserRunConfig.from_env()
     if output_dir:
         config = BrowserRunConfig(**{**config.__dict__, "output_dir": output_dir})
-    safety = RunnerSafetyConfig.for_mode(mode)
+    safety = _safety_from_env(RunnerSafetyConfig.for_mode(mode))
     failures: FailureCounts = {"selector": 0, "backend": 0, "page": 0}
     traces = []
     failure_log = []
@@ -86,6 +88,40 @@ def run_batch(
             return {"experiment_id": experiment_id, "mode": mode, "traces": traces, "failures": failures, "failure_log": failure_log, "circuit_breaker": breaker}
         time.sleep(0.05 if mode == "mock" else safety.min_think_ms / 1000)
     return {"experiment_id": experiment_id, "mode": mode, "traces": traces, "failures": failures, "failure_log": failure_log, "circuit_breaker": None}
+
+
+def _env_int(name: str, default: int) -> int:
+    value = os.getenv(name)
+    if not value:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    value = os.getenv(name)
+    if not value:
+        return default
+    try:
+        return float(value)
+    except ValueError:
+        return default
+
+
+def _safety_from_env(safety: RunnerSafetyConfig) -> RunnerSafetyConfig:
+    multiplier = _env_float("RUNNER_DWELL_MULTIPLIER", 1.0)
+    min_think = _env_int("RUNNER_MIN_THINK_MS", int(safety.min_think_ms * multiplier))
+    max_think = _env_int("RUNNER_MAX_THINK_MS", int(safety.max_think_ms * multiplier))
+    return replace(
+        safety,
+        min_think_ms=max(0, min_think),
+        max_think_ms=max(min_think, max_think),
+        selector_failure_limit=_env_int("RUNNER_SELECTOR_FAILURE_LIMIT", safety.selector_failure_limit),
+        backend_failure_limit=_env_int("RUNNER_BACKEND_FAILURE_LIMIT", safety.backend_failure_limit),
+        page_failure_limit=_env_int("RUNNER_PAGE_FAILURE_LIMIT", safety.page_failure_limit),
+    )
 
 
 def main() -> None:

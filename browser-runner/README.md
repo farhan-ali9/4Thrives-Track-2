@@ -44,6 +44,14 @@ The result JSON includes `failures`, `failure_log`, and `circuit_breaker` so fai
 - recent decision history
 - strict JSON action schema with runner-side fallback to the existing persona policy
 
+Local runs default to Featherless AI:
+
+```bash
+export FEATHERLESS_API_KEY=rc_your_key_here
+export LLM_API_URL=https://api.featherless.ai/v1/chat/completions
+export LLM_MODEL=MihaiPopa-1/Qwen-3-0.6B-Claude-4.7-Opus-Distilled
+```
+
 Each trace stores:
 
 - `run_mode`

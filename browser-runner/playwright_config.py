@@ -4,7 +4,9 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-LIVE_UNIQA_URL = "https://www.uniqa.at/versicherung/gesundheit/private-krankenversicherung.html"
+LIVE_UNIQA_URL = "https://www.uniqa.at/rechner/krankenversicherung/"
+FEATHERLESS_CHAT_COMPLETIONS_URL = "https://api.featherless.ai/v1/chat/completions"
+DEFAULT_FEATHERLESS_MODEL = "MihaiPopa-1/Qwen-3-0.6B-Claude-4.7-Opus-Distilled"
 
 
 @dataclass(frozen=True)
@@ -42,8 +44,8 @@ class BrowserRunConfig:
     extension_build_id: str = "local"
     model_version_or_policy: str = "rule-based"
     execution_mode: str = "coach"
-    llm_api_url: str = "http://127.0.0.1:8000/v1/chat/completions"
-    llm_model: str = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    llm_api_url: str = FEATHERLESS_CHAT_COMPLETIONS_URL
+    llm_model: str = DEFAULT_FEATHERLESS_MODEL
     llm_temperature: float = 0.2
     llm_timeout_s: float = 30.0
 
@@ -64,8 +66,8 @@ class BrowserRunConfig:
             extension_build_id=os.getenv("EXTENSION_BUILD_ID", "local"),
             model_version_or_policy=model_version,
             execution_mode=execution_mode,
-            llm_api_url=os.getenv("LLM_API_URL", "http://127.0.0.1:8000/v1/chat/completions"),
-            llm_model=os.getenv("LLM_MODEL", "meta-llama/Meta-Llama-3.1-8B-Instruct"),
+            llm_api_url=os.getenv("LLM_API_URL", os.getenv("LLM_GATEWAY_URL", FEATHERLESS_CHAT_COMPLETIONS_URL)),
+            llm_model=os.getenv("LLM_MODEL", os.getenv("LLM_DEFAULT_MODEL", os.getenv("VITE_FEATHERLESS_MODEL", DEFAULT_FEATHERLESS_MODEL))),
             llm_temperature=float(os.getenv("LLM_TEMPERATURE", "0.2")),
             llm_timeout_s=float(os.getenv("LLM_TIMEOUT_S", "30")),
         )

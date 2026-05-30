@@ -20,6 +20,7 @@
     "db:migrate": "bash ./scripts/db-migrate.sh",
     "dev:coach-api": "node --env-file=.env node_modules/tsx/dist/cli.mjs watch coach-api/src/server.ts",
     "dev:admin": "npm run dev --workspace admin-portal",
-    "build:extension": "npm run build --workspace extension"
+    "build:extension": "npm run build --workspace extension",
+    "pipeline:local": "bash ./scripts/run_local_training_pipeline.sh"
   }
 }

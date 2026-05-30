@@ -129,6 +129,50 @@ The repo now exposes one CLI for live simulation, dataset building, training, ev
 
 Trace files now include runner-owned LLM decision logs, per-step screenshots and DOM snapshots, and a normalized `run_mode` / `instrumentation_mode` split so baseline and coached sessions can be used together.
 
+### Local Featherless Training Loop
+
+For local machine runs, put your `FEATHERLESS_API_KEY` in `.env` and use Featherless as the OpenAI-compatible persona driver:
+
+```bash
+npm run db:up
+npm run db:migrate
+npm run dev:coach-api
+npm run build:extension
+```
+
+Then, in another terminal:
+
+```bash
+npm run pipeline:local
+```
+
+This runs baseline and coached browser sessions, builds `user-policy.jsonl` and `coach-ranking.jsonl`, trains the local frequency user-policy/ranker models, and writes outputs under `artifacts/local-training-pipeline/latest` by default.
+It also writes a baseline-vs-coach overview:
+
+```text
+artifacts/local-training-pipeline/latest/overview.json
+artifacts/local-training-pipeline/latest/overview.md
+artifacts/local-training-pipeline/latest/pipeline_summary.json
+```
+
+The local defaults are:
+
+```text
+LLM_API_URL=https://api.featherless.ai/v1/chat/completions
+LLM_MODEL=MihaiPopa-1/Qwen-3-0.6B-Claude-4.7-Opus-Distilled
+```
+
+Set `RUNNER_SESSIONS`, `BASELINE_SESSIONS`, `COACH_SESSIONS`, or `PIPELINE_OUTPUT_ROOT` in `.env` to change the run size/output folder. Use `SKIP_EVALUATE=1` for trace generation plus training only.
+Use `PERSONA_RUNS=2` to run every persona/intention pair twice per mode. One full persona run is 12 sessions per mode: Franz, Judith, and Peter across purchase, orientation, comparison, and price-check intentions.
+
+For slower persona behavior, use:
+
+```text
+RUNNER_DWELL_MULTIPLIER=2.2
+RUNNER_MIN_THINK_MS=1800
+RUNNER_MAX_THINK_MS=9000
+```
+
 ## DigitalOcean Deployment
 
 Files added for deployment:
