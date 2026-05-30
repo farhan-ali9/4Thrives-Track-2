@@ -212,7 +212,7 @@ Do not edit:
 * backend/*
 * database migrations unless agreed with Farhan
 
-Status: Initial scaffold implemented locally; coordination update ready to share
+Status: Runner safety and metrics expansion implemented locally; coordination update ready to share
 
 Files currently being edited:
 
@@ -220,12 +220,15 @@ Files currently being edited:
 
 Completed files:
 
+* browser-runner/README.md
+* browser-runner/errors.py
 * browser-runner/persona_policy.py
 * browser-runner/playwright_config.py
 * browser-runner/run_session.py
 * browser-runner/run_batch.py
 * browser-runner/tests/test_persona_policy.py
 * browser-runner/tests/test_mock_runner.py
+* browser-runner/tests/test_run_batch.py
 * personas/franz.json
 * personas/judith.json
 * personas/peter.json
@@ -250,10 +253,10 @@ Completed files:
 * docs/evaluation/README.md
 * docs/training/README.md
 
-Last update: 2026-05-30 15:19 CEST
+Last update: 2026-05-30 15:24 CEST
 
 Notes:
-Andrii implemented the first local scaffold for persona policies, safe mock/live runner entry points, replay, metrics, trace-to-dataset, simple post-trace ranker training, Leonardo batch docs/scripts, and focused unit tests. Verified with `python3 -m unittest discover -s browser-runner/tests -p 'test_*.py'`, `python3 -m unittest discover -s evaluation/tests -p 'test_*.py'`, `python3 -m unittest discover -s training/tests -p 'test_*.py'`, mock batch smoke, dataset build smoke, and compare-modes smoke. David: live validation will need `EXTENSION_DIST` pointing at the built extension and stable live selectors/render signals. Farhan: dataset builder expects trace events with `derived_context.intervention_kind`, `runner_metadata`, and terminal outcomes; remote David/Farhan branches were checked at 15:19 CEST and still matched the agents-spec commit, so no cross-branch implementation changes were integrated.
+Andrii implemented the first local scaffold for persona policies, safe mock/live runner entry points, replay, metrics, trace-to-dataset, simple post-trace ranker training, Leonardo batch docs/scripts, and focused unit tests. Follow-up expansion added classified runner failures, batch `failure_log` and `circuit_breaker` summaries, explicit backend/selector failure tests, and metrics for advisor-routing correctness, conversion by intention, persona-step drop-off, intervention acceptance/dismiss/annoyance, precision/recall, selector drift, backend timeout, and inference latency. Verified with `python3 -m unittest discover -s browser-runner/tests -p 'test_*.py'`, `python3 -m unittest discover -s evaluation/tests -p 'test_*.py'`, `python3 -m unittest discover -s training/tests -p 'test_*.py'`, mock batch smoke, dataset build smoke, compare-modes smoke, replay smoke, ranker training smoke, and ranker evaluation smoke. David: live validation will need `EXTENSION_DIST` pointing at the built extension and stable live selectors/render signals; origin/david-branch moved at 15:21 CEST but only changed coordination status, so no implementation changes were integrated. Farhan: dataset builder expects trace events with `derived_context.intervention_kind`, `runner_metadata`, and terminal outcomes; origin/Farhan-Branch still matched the agents-spec commit at 15:21 CEST.
 
 ---
 
