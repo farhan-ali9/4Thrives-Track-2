@@ -27,7 +27,7 @@ from live_page import (
     read_runner_shim,
 )
 from llm_persona import LLMPersonaDriver, PersonaDecision
-from persona_policy import ONLINE_STEPS, classify_outcome, load_personas
+from persona_policy import ONLINE_STEPS, OUT_OF_SCOPE_ELEMENTS, classify_outcome, load_personas
 from playwright_config import BrowserRunConfig, RunnerSafetyConfig
 
 
@@ -207,6 +207,67 @@ def _append_baseline_event(
     )
 
 
+def _click_next(page: Any) -> None:
+    button = page.locator("[data-cy='nextStepButton']")
+    if button.count() > 0:
+        button.first.click()
+        return
+    page.get_by_role("button", name="Weiter").click()
+
+
+def _click_label_exact(page: Any, label_text: str) -> None:
+    clicked = page.evaluate(
+        """
+        (labelText) => {
+          const normalize = (value) => (value || "").replace(/\\s+/g, " ").trim().toLowerCase();
+          const wanted = normalize(labelText);
+          const labels = Array.from(document.querySelectorAll("label"));
+          const target = labels.find((label) => normalize(label.textContent) === wanted);
+          if (target instanceof HTMLElement) {
+            target.click();
+            return true;
+          }
+          return false;
+        }
+        """,
+        label_text,
+    )
+    if not clicked:
+        page.get_by_text(label_text, exact=True).first.click()
+
+
+def _answer_visible_no_options(page: Any) -> None:
+    clicked = page.evaluate(
+        """
+        () => {
+          const normalize = (value) => (value || "").replace(/\\s+/g, " ").trim().toLowerCase();
+          let clickedCount = 0;
+          for (const label of Array.from(document.querySelectorAll("label[role='radio'], label"))) {
+            if (normalize(label.textContent) !== "nein") continue;
+            const visible = Boolean(label.offsetWidth || label.offsetHeight || label.getClientRects().length);
+            if (!visible) continue;
+            const input = label.querySelector("input");
+            const checked = label.getAttribute("aria-checked") === "true" || Boolean(input?.checked);
+            if (!checked && label instanceof HTMLElement) {
+              label.click();
+              clickedCount += 1;
+            }
+          }
+          return clickedCount;
+        }
+        """
+    )
+    if clicked == 0:
+        page.get_by_text("nein", exact=True).first.click()
+    page.wait_for_timeout(150)
+
+
+def _terminal_outcome_for_element(element_key: str | None) -> str | None:
+    if element_key in OUT_OF_SCOPE_ELEMENTS:
+        return "advisor_handoff"
+    return None
+
+
 def _step_artifacts(page: Any, *, session_dir: Path, step_id: str, index: int, context: dict[str, Any]) -> dict[str, Any]:
     step_dir = session_dir / "artifacts"
     step_dir.mkdir(parents=True, exist_ok=True)
@@ -226,7 +287,7 @@ def _fill_quote_basics(page: Any, profile: SessionProfile) -> None:
     page.get_by_role("textbox", name="Geburtsdatum").fill(profile.birth_date)
     page.locator("[data-cy='ur-select-field-button']").click()
     page.get_by_text(profile.social_provider).click()
-    page.get_by_role("button", name="Weiter").click()
+    _click_next(page)
 
 
 def _fill_personal_medical_data(page: Any, profile: SessionProfile) -> None:
@@ -241,9 +302,9 @@ def _fill_personal_medical_data(page: Any, profile: SessionProfile) -> None:
     text_inputs.nth(4).fill(profile.phone)
     text_inputs.nth(5).fill(str(profile.height_cm))
     text_inputs.nth(6).fill(str(profile.weight_kg))
-    page.get_by_text("nein").click()
-    page.get_by_text("kein behandelnder Arzt").click()
-    page.get_by_role("button", name="Weiter").click()
+    _answer_visible_no_options(page)
+    _click_label_exact(page, "kein behandelnder Arzt")
+    _click_next(page)
 
 
 def _complete_questionnaire_to_boundary(page: Any) -> None:
@@ -260,7 +321,7 @@ def _complete_questionnaire_to_boundary(page: Any) -> None:
                 found = True
         if not found:
             continue
-        page.get_by_role("button", name="Weiter").click()
+        _click_next(page)
         page.wait_for_timeout(350)
         next_step = detect_step(page)
         if next_step and next_step["pageStepId"] == "s8_confirm":
@@ -278,8 +339,8 @@ def _click_tariff(page: Any, action: str) -> None:
         raise SelectorFailure(f"Unsupported tariff action: {action}")
     page.get_by_role("button", name=button_name).click()
     page.wait_for_timeout(300)
-    if action in {"select_start", "select_optimal"} and page.get_by_role("button", name="Weiter").is_visible():
-        page.get_by_role("button", name="Weiter").click()
+    if action in {"select_start", "select_optimal"} and page.locator("[data-cy='nextStepButton']").is_visible():
+        _click_next(page)
 
 
 def _safe_check(locator: Any) -> None:
@@ -352,7 +413,7 @@ def _execute_step_action(page: Any, *, step_id: str, action: str, profile: Sessi
             page.get_by_role("checkbox", name="Bei Arztbesuchen").click()
             page.get_by_role("checkbox", name="Im Krankenhaus").click()
             element_key = "both"
-        page.get_by_role("button", name="Weiter").click()
+        _click_next(page)
         return {"terminal": False, "element_key": element_key}
 
     if step_id == "s2_for_whom":
@@ -362,7 +423,7 @@ def _execute_step_action(page: Any, *, step_id: str, action: str, profile: Sessi
         else:
             page.get_by_role("radio", name="Andere Personen").click()
             element_key = "other_persons"
-        page.get_by_role("button", name="Weiter").click()
+        _click_next(page)
         return {"terminal": False, "element_key": element_key}
 
     if step_id == "s3_quote_basics":
@@ -390,7 +451,7 @@ def _execute_step_action(page: Any, *, step_id: str, action: str, profile: Sessi
                 if not checkboxes.nth(index).is_checked():
                     _safe_check(checkboxes.nth(index))
                     break
-        page.get_by_role("button", name="Weiter").click()
+        _click_next(page)
         return {"terminal": False, "element_key": "primary_continue"}
 
     if step_id == "s6_personal_medical_data":
@@ -533,7 +594,7 @@ def run_live_session(*, persona_id: str, intention: str, experiment_id: str, see
                             derived_context=current_context,
                             metadata=metadata,
                         )
-                terminal_outcome = execution.get("outcome")
+                terminal_outcome = execution.get("outcome") or _terminal_outcome_for_element(execution.get("element_key"))
                 if terminal_outcome is None and step_id == "s8_confirm":
                     terminal_outcome = "advisor_handoff"
                 visited_step_count += 1

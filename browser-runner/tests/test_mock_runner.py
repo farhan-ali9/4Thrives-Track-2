@@ -27,6 +27,11 @@ class MockRunnerTests(unittest.TestCase):
             path = module.write_trace(trace, tmp_path)
             self.assertTrue(path.exists())
 
+    def test_out_of_scope_live_elements_end_as_advisor_handoff(self):
+        for element_key in ("hospital", "other_persons", "opt_plus", "premium"):
+            self.assertEqual(module._terminal_outcome_for_element(element_key), "advisor_handoff")
+        self.assertIsNone(module._terminal_outcome_for_element("at_doctor"))
+
 
 if __name__ == "__main__":
     unittest.main()
