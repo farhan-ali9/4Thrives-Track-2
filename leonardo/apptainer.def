@@ -11,7 +11,8 @@ From: mcr.microsoft.com/playwright/python:v1.44.0-jammy
 
 %post
     python -m pip install --upgrade pip
-    python -m pip install playwright
+    python -m pip install playwright pytest vllm
+    playwright install chromium
 
 %runscript
     cd "$PWD"

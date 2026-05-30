@@ -16,7 +16,7 @@ if [[ -n "${LEONARDO_ENV_FILE:-}" ]]; then
   source "$LEONARDO_ENV_FILE"
   set +a
 fi
-python evaluation/run_experiment.py \
+./uniqa-pipeline evaluate \
   --runner-mode "${RUNNER_MODE:-validation}" \
   --sessions-per-mode "${RUNNER_SESSIONS_PER_MODE:-6}" \
   --experiment-id "${EXPERIMENT_ID:-leonardo-${SLURM_JOB_ID:-local}}" \

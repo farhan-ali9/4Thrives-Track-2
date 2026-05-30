@@ -15,5 +15,9 @@ if [[ -n "${LEONARDO_ENV_FILE:-}" ]]; then
   source "$LEONARDO_ENV_FILE"
 fi
 python replay/validate_traces.py "${RUNNER_OUTPUT_DIR:-artifacts/browser-runs}" --fail-on-invalid
-python training/build_dataset.py --traces "${RUNNER_OUTPUT_DIR:-artifacts/browser-runs}" --output artifacts/datasets/action-ranking.jsonl
-python training/quality_checks.py artifacts/datasets/action-ranking.jsonl --fail-on-error
+./uniqa-pipeline build-datasets \
+  --traces "${RUNNER_OUTPUT_DIR:-artifacts/browser-runs}" \
+  --user-output "${USER_POLICY_DATASET:-artifacts/datasets/user-policy.jsonl}" \
+  --coach-output "${ACTION_RANKING_DATASET:-artifacts/datasets/coach-ranking.jsonl}"
+python training/check_user_policy_dataset.py "${USER_POLICY_DATASET:-artifacts/datasets/user-policy.jsonl}" --fail-on-error
+python training/quality_checks.py "${ACTION_RANKING_DATASET:-artifacts/datasets/coach-ranking.jsonl}" --fail-on-error

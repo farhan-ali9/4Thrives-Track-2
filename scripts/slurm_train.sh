@@ -14,7 +14,7 @@ if [[ -n "${LEONARDO_ENV_FILE:-}" ]]; then
   # shellcheck disable=SC1090
   source "$LEONARDO_ENV_FILE"
 fi
-: "${ACTION_RANKING_DATASET:=artifacts/datasets/action-ranking.jsonl}"
-python training/quality_checks.py "$ACTION_RANKING_DATASET" --fail-on-error
-python training/train_ranker.py --dataset "$ACTION_RANKING_DATASET" --output artifacts/training/frequency-ranker.json
-python training/evaluate_ranker.py --dataset "$ACTION_RANKING_DATASET" --model artifacts/training/frequency-ranker.json
+: "${USER_POLICY_DATASET:=artifacts/datasets/user-policy.jsonl}"
+: "${ACTION_RANKING_DATASET:=artifacts/datasets/coach-ranking.jsonl}"
+./uniqa-pipeline train-user-policy --dataset "$USER_POLICY_DATASET" --output "${USER_POLICY_MODEL:-artifacts/training/user-policy.json}"
+./uniqa-pipeline train-coach-ranker --dataset "$ACTION_RANKING_DATASET" --output "${TRAINABLE_RANKER_MODEL:-artifacts/training/frequency-ranker.json}"

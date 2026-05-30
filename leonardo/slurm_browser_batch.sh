@@ -10,7 +10,13 @@
 
 set -euo pipefail
 mkdir -p artifacts/logs
-: "${RUNNER_OUTPUT_DIR:=artifacts/browser-runs}"
-: "${RUNNER_MODE:=validation}"
-: "${RUNNER_SESSIONS:=3}"
-python browser-runner/run_batch.py --mode "$RUNNER_MODE" --sessions "$RUNNER_SESSIONS" --experiment-id "leonardo-${SLURM_JOB_ID}"
+: "${RUNNER_EXECUTION_MODE:=baseline}"
+: "${RUNNER_SESSIONS:=12}"
+CMD=(./uniqa-pipeline validate-live
+  --execution-mode "$RUNNER_EXECUTION_MODE"
+  --sessions "$RUNNER_SESSIONS"
+  --experiment-id "leonardo-${SLURM_JOB_ID:-local}")
+if [[ -n "${RUNNER_OUTPUT_DIR:-}" ]]; then
+  CMD+=(--output-dir "$RUNNER_OUTPUT_DIR")
+fi
+"${CMD[@]}"

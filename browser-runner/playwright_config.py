@@ -23,7 +23,7 @@ class RunnerSafetyConfig:
     @classmethod
     def for_mode(cls, mode: str) -> "RunnerSafetyConfig":
         if mode == "bulk":
-            return cls(mode="bulk", max_sessions=50, concurrency=3, min_think_ms=450, max_think_ms=2200, screenshots=False)
+            return cls(mode="bulk", max_sessions=600, concurrency=3, min_think_ms=450, max_think_ms=2200, screenshots=False)
         if mode == "validation":
             return cls()
         if mode == "mock":
@@ -41,10 +41,19 @@ class BrowserRunConfig:
     page_map_version: str = "live-uniqa-v1"
     extension_build_id: str = "local"
     model_version_or_policy: str = "rule-based"
+    execution_mode: str = "coach"
+    llm_api_url: str = "http://127.0.0.1:8000/v1/chat/completions"
+    llm_model: str = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    llm_temperature: float = 0.2
+    llm_timeout_s: float = 30.0
 
     @classmethod
     def from_env(cls) -> "BrowserRunConfig":
         extension = os.getenv("EXTENSION_DIST")
+        model_version = os.getenv("MODEL_VERSION_OR_POLICY", "rule-based")
+        execution_mode = os.getenv("RUNNER_EXECUTION_MODE")
+        if not execution_mode:
+            execution_mode = "baseline" if model_version == "baseline-no-coach" else "coach"
         return cls(
             site_url=os.getenv("UNIQA_CALCULATOR_URL", LIVE_UNIQA_URL),
             backend_url=os.getenv("COACH_API_URL", "http://127.0.0.1:8787"),
@@ -53,5 +62,10 @@ class BrowserRunConfig:
             headless=os.getenv("RUNNER_HEADLESS", "0") == "1",
             page_map_version=os.getenv("PAGE_MAP_VERSION", "live-uniqa-v1"),
             extension_build_id=os.getenv("EXTENSION_BUILD_ID", "local"),
-            model_version_or_policy=os.getenv("MODEL_VERSION_OR_POLICY", "rule-based"),
+            model_version_or_policy=model_version,
+            execution_mode=execution_mode,
+            llm_api_url=os.getenv("LLM_API_URL", "http://127.0.0.1:8000/v1/chat/completions"),
+            llm_model=os.getenv("LLM_MODEL", "meta-llama/Meta-Llama-3.1-8B-Instruct"),
+            llm_temperature=float(os.getenv("LLM_TEMPERATURE", "0.2")),
+            llm_timeout_s=float(os.getenv("LLM_TIMEOUT_S", "30")),
         )

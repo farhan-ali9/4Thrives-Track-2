@@ -29,7 +29,13 @@ async function bootstrap(): Promise<void> {
     return;
   }
 
+  const preferredSessionId =
+    (window as Window & { __UNIQA_PREFERRED_SESSION_ID?: unknown }).__UNIQA_PREFERRED_SESSION_ID;
   const init = await sendRuntimeMessage<RuntimeInitResponse>({
+    preferredSessionId:
+      typeof preferredSessionId === "string" && preferredSessionId.trim().length > 0
+        ? preferredSessionId
+        : undefined,
     type: "uniqa:init",
     url: window.location.href,
   });

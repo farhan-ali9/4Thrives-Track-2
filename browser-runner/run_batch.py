@@ -12,11 +12,17 @@ from run_session import run_live_session, run_mock_session, write_trace
 
 PERSONA_MATRIX = [
     ("franz", "purchase"),
+    ("franz", "orientation"),
     ("franz", "comparison"),
+    ("franz", "price_check"),
+    ("judith", "purchase"),
     ("judith", "orientation"),
+    ("judith", "comparison"),
     ("judith", "price_check"),
     ("peter", "purchase"),
     ("peter", "orientation"),
+    ("peter", "comparison"),
+    ("peter", "price_check"),
 ]
 FailureCounts = dict[str, int]
 RunnerFn = Callable[[str, str, str, int, BrowserRunConfig, RunnerSafetyConfig], dict[str, Any]]
@@ -67,13 +73,14 @@ def run_batch(
 
     for index in range(min(sessions, safety.max_sessions)):
         persona_id, intention = PERSONA_MATRIX[index % len(PERSONA_MATRIX)]
+        seed = index // len(PERSONA_MATRIX) + 1
         try:
-            trace = selected_runner(persona_id, intention, experiment_id, index + 1, config, safety)
+            trace = selected_runner(persona_id, intention, experiment_id, seed, config, safety)
             traces.append(str(write_trace(trace, config.output_dir)))
         except Exception as exc:  # classified below and summarized for evaluation hygiene
             bucket = _classify_failure(exc)
             failures[bucket] += 1
-            failure_log.append({"session_index": index, "persona_id": persona_id, "intention": intention, "failure_type": bucket, "message": str(exc)})
+            failure_log.append({"session_index": index, "persona_id": persona_id, "intention": intention, "seed": seed, "failure_type": bucket, "message": str(exc)})
         breaker = _circuit_breaker_reason(failures, safety)
         if breaker:
             return {"experiment_id": experiment_id, "mode": mode, "traces": traces, "failures": failures, "failure_log": failure_log, "circuit_breaker": breaker}

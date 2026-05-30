@@ -6,9 +6,17 @@ platforms = ["linux-64"]
 [tasks]
 mock-batch = "python browser-runner/run_batch.py --mode mock --sessions 6"
 build-dataset = "python training/build_dataset.py --traces artifacts/browser-runs --output artifacts/datasets/action-ranking.jsonl"
+validate-live = "./uniqa-pipeline validate-live"
+run-live = "./uniqa-pipeline run-live"
+build-datasets = "./uniqa-pipeline build-datasets --traces artifacts/browser-runs"
+train-user-policy = "./uniqa-pipeline train-user-policy"
+train-coach-ranker = "./uniqa-pipeline train-coach-ranker"
+evaluate = "./uniqa-pipeline evaluate"
 
 [dependencies]
 python = ">=3.11,<3.13"
 
 [pypi-dependencies]
 playwright = ">=1.44"
+pytest = ">=8.0"
+vllm = ">=0.5"

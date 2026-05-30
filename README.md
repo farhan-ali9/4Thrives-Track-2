@@ -100,6 +100,7 @@ Important behavior:
 ```bash
 npm run build
 npm test
+python -m unittest browser-runner/tests/test_llm_persona.py training/tests/test_build_live_datasets.py training/tests/test_user_policy.py training/tests/test_uniqa_pipeline.py
 ```
 
 `npm test` rebuilds the shared workspace first so the extension and backend
@@ -111,6 +112,22 @@ Live extension smoke:
 cd extension
 npm run test:live
 ```
+
+## Live Simulation CLI
+
+The repo now exposes one CLI for live simulation, dataset building, training, evaluation, and Leonardo submission:
+
+```bash
+./uniqa-pipeline validate-live --execution-mode baseline
+./uniqa-pipeline validate-live --execution-mode coach
+./uniqa-pipeline run-live --execution-mode coach --sessions 300
+./uniqa-pipeline build-datasets --traces artifacts/browser-runs
+./uniqa-pipeline train-user-policy
+./uniqa-pipeline train-coach-ranker
+./uniqa-pipeline evaluate --runner-mode validation
+```
+
+Trace files now include runner-owned LLM decision logs, per-step screenshots and DOM snapshots, and a normalized `run_mode` / `instrumentation_mode` split so baseline and coached sessions can be used together.
 
 ## DigitalOcean Deployment
 

@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT / "browser-runner"))
 spec = importlib.util.spec_from_file_location("run_session", ROOT / "browser-runner" / "run_session.py")
 module = importlib.util.module_from_spec(spec)
 assert spec.loader
+sys.modules["run_session"] = module
 spec.loader.exec_module(module)
 
 

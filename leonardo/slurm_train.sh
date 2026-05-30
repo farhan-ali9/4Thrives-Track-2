@@ -10,5 +10,9 @@
 
 set -euo pipefail
 mkdir -p artifacts/logs artifacts/training
-python training/train_ranker.py --dataset artifacts/datasets/action-ranking.jsonl --output artifacts/training/frequency-ranker.json
-python training/evaluate_ranker.py --dataset artifacts/datasets/action-ranking.jsonl --model artifacts/training/frequency-ranker.json
+./uniqa-pipeline train-user-policy \
+  --dataset "${USER_POLICY_DATASET:-artifacts/datasets/user-policy.jsonl}" \
+  --output "${USER_POLICY_MODEL:-artifacts/training/user-policy.json}"
+./uniqa-pipeline train-coach-ranker \
+  --dataset "${ACTION_RANKING_DATASET:-artifacts/datasets/coach-ranking.jsonl}" \
+  --output "${TRAINABLE_RANKER_MODEL:-artifacts/training/frequency-ranker.json}"

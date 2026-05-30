@@ -12,6 +12,7 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "test": "npm run build --workspace @uniqa-conversion-coach/shared && npm run test --workspaces --if-present",
+    "pipeline": "python uniqa_pipeline.py",
     "db:up": "bash ./scripts/db-up.sh",
     "db:down": "bash ./scripts/db-down.sh",
     "db:reset": "bash ./scripts/db-reset.sh",

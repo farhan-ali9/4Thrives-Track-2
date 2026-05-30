@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import sys
 import unittest
 from pathlib import Path
 
@@ -9,6 +10,7 @@ MODULE_PATH = ROOT / "browser-runner" / "persona_policy.py"
 spec = importlib.util.spec_from_file_location("persona_policy", MODULE_PATH)
 module = importlib.util.module_from_spec(spec)
 assert spec.loader
+sys.modules["persona_policy"] = module
 spec.loader.exec_module(module)
 
 
