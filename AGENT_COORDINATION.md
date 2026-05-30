@@ -72,16 +72,58 @@ Do not edit:
 * replay/*
 * ops-console/*
 
-Status: Not started
+Status: In progress
 
 Files currently being edited:
 
-* none
+* extension/src/background/orchestrator.ts
+* extension/src/content/data-collector.ts
+* extension/src/shared/extractors.ts
+* extension/tests/integration.test.ts
+* extension/tests/live-smoke.spec.ts
+* extension/tests/step-matcher.test.ts
+* AGENT_COORDINATION.md
 
-Last update: TBD
+Start time: 2026-05-30 15:06:07 CEST
+
+Short plan:
+* audit current extension behavior against the David spec
+* stabilize UNIQA step and out-of-scope detection
+* fill event/derived-context/rendering gaps and extend smoke coverage
+
+Last update: 2026-05-30 15:20:02 CEST
 
 Notes:
-David owns the browser-side integration only. Backend decision logic should be mocked only if needed for local testing, but real backend API contracts belong to Farhan.
+* Completed this pass:
+  * fixed a per-session event-ordering race in the extension background so concurrent observer events no longer overwrite each other
+  * added session-duration extraction and corrected price-delta extraction against the previous visible price
+  * tightened interaction tracking so focus/blur/pointerenter reset inactivity and button text can still classify out-of-scope path/tariff choices
+  * added a live smoke that loads the built MV3 extension in Chromium against the real UNIQA calculator with a mock backend and verifies coach render plus stored `coach_impression`, `coach_cta`, and `coach_dismiss` events
+* Verification on 2026-05-30:
+  * `cd extension && npm test`
+  * `cd extension && npm run build`
+  * `cd extension && npm run test:live`
+  * all passed
+* Stable live step detection verified today:
+  * `s1_coverage_scope`
+  * `s2_for_whom`
+  * `s4_initial_price`
+  * `s5_add_ons`
+  * `s6_personal_medical_data`
+* Step 7 status:
+  * `s7_final_price` is still pending live selector verification
+  * I could reach `s6_personal_medical_data` reliably, but the live flow still requires valid downstream personal/medical form data before I can safely confirm the final-price screen selectors
+* Notes for Farhan:
+  * current extension/backend integration in this branch still calls `POST /api/v1/coach/evaluate`
+  * live-stored event types now reliably include `step_enter`, `step_resolved`, `coach_impression`, `coach_cta`, and `coach_dismiss`
+  * derived context emitted by the extension now includes `sessionDurationMs` and a corrected incremental `priceDelta`
+* Notes for Andrii:
+  * there is now a Playwright live smoke path that launches the built extension bundle in Chromium with `--load-extension`
+  * stable live journey coverage currently reaches `s6_personal_medical_data`
+  * selector verification for `s7_final_price` remains open
+* Branch check:
+  * `origin/Farhan-branch` currently matches `origin/main`
+  * no separate `origin` branch for Andrii was present when checked
 
 ---
 
