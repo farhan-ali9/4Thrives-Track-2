@@ -79,7 +79,9 @@ Files currently being edited:
 * extension/src/background/orchestrator.ts
 * extension/src/content/data-collector.ts
 * extension/src/shared/extractors.ts
+* extension/src/shared/uniqa-page-map.json
 * extension/tests/integration.test.ts
+* extension/tests/fixtures/s7_final_price.html
 * extension/tests/live-smoke.spec.ts
 * extension/tests/step-matcher.test.ts
 * AGENT_COORDINATION.md
@@ -91,7 +93,7 @@ Short plan:
 * stabilize UNIQA step and out-of-scope detection
 * fill event/derived-context/rendering gaps and extend smoke coverage
 
-Last update: 2026-05-30 15:20:02 CEST
+Last update: 2026-05-30 15:29:44 CEST
 
 Notes:
 * Completed this pass:
@@ -99,6 +101,8 @@ Notes:
   * added session-duration extraction and corrected price-delta extraction against the previous visible price
   * tightened interaction tracking so focus/blur/pointerenter reset inactivity and button text can still classify out-of-scope path/tariff choices
   * added a live smoke that loads the built MV3 extension in Chromium against the real UNIQA calculator with a mock backend and verifies coach render plus stored `coach_impression`, `coach_cta`, and `coach_dismiss` events
+  * enabled `s7_final_price` using live-verified selectors for the current UNIQA journey screen titled `Bisherige Versicherungen`
+  * fixed extractor realm-safety so field/value extraction works correctly for cross-realm DOMs in JSDOM fixtures as well as the live page
 * Verification on 2026-05-30:
   * `cd extension && npm test`
   * `cd extension && npm run build`
@@ -110,20 +114,30 @@ Notes:
   * `s4_initial_price`
   * `s5_add_ons`
   * `s6_personal_medical_data`
+  * `s7_final_price`
 * Step 7 status:
-  * `s7_final_price` is still pending live selector verification
-  * I could reach `s6_personal_medical_data` reliably, but the live flow still requires valid downstream personal/medical form data before I can safely confirm the final-price screen selectors
+  * live verified and enabled
+  * to reach it reliably in automation, Step 6 needed valid personal/medical data including a valid Austrian-style SV number and the full phone number with country code in the phone field
+  * live selector anchor now uses:
+    * text: `Bisherige Versicherungen`
+    * `data-cy='insuranceInPast7Years'`
+    * `data-cy='rejectedApplication'`
+* Remaining open area:
+  * `s8_confirm` is still unverified on the current live flow
+  * after Step 7, the website continues into deeper medical-history questions rather than an immediate final confirmation screen, so the existing `s8_confirm` mapping still needs fresh live discovery
 * Notes for Farhan:
   * current extension/backend integration in this branch still calls `POST /api/v1/coach/evaluate`
   * live-stored event types now reliably include `step_enter`, `step_resolved`, `coach_impression`, `coach_cta`, and `coach_dismiss`
-  * derived context emitted by the extension now includes `sessionDurationMs` and a corrected incremental `priceDelta`
+  * derived context emitted by the extension now includes `sessionDurationMs`, a corrected incremental `priceDelta`, and Step 7 field-completion data
 * Notes for Andrii:
   * there is now a Playwright live smoke path that launches the built extension bundle in Chromium with `--load-extension`
-  * stable live journey coverage currently reaches `s6_personal_medical_data`
-  * selector verification for `s7_final_price` remains open
+  * stable live journey coverage now reaches `s7_final_price`
+  * the live smoke contains the exact synthetic Step 6 inputs needed to advance into Step 7
+  * selector verification beyond Step 7 remains open
 * Branch check:
   * `origin/Farhan-branch` currently matches `origin/main`
   * no separate `origin` branch for Andrii was present when checked
+  * `origin/frontend` contains earlier extension/chat work and asset additions, but I did not see a newer backend interface change there that alters David’s current integration notes
 
 ---
 
