@@ -76,6 +76,7 @@ Status: In progress
 
 Files currently being edited:
 
+* extension/src/background/coach-client.ts
 * extension/src/background/orchestrator.ts
 * extension/src/content/data-collector.ts
 * extension/src/shared/extractors.ts
@@ -95,10 +96,11 @@ Short plan:
 * stabilize UNIQA step and out-of-scope detection
 * fill event/derived-context/rendering gaps and extend smoke coverage
 
-Last update: 2026-05-30 15:38:12 CEST
+Last update: 2026-05-30 15:45:43 CEST
 
 Notes:
 * Completed this pass:
+  * switched the extension backend client to post canonical v2 event-ingestion payloads to `/api/v2/events` first, while preserving a legacy `/api/v1/coach/evaluate` fallback for older mocks/local servers
   * fixed a per-session event-ordering race in the extension background so concurrent observer events no longer overwrite each other
   * added session-duration extraction and corrected price-delta extraction against the previous visible price
   * tightened interaction tracking so focus/blur/pointerenter reset inactivity and button text can still classify out-of-scope path/tariff choices
@@ -140,7 +142,22 @@ Notes:
 * Remaining open area:
   * the current live site behavior does not show a straightforward online confirmation screen on this persona path, so Farhan and Andrii should treat the observed Step 8 screen in this branch as an advisor-handoff terminal state unless later backend rules say otherwise
 * Notes for Farhan:
-  * current extension/backend integration in this branch still calls `POST /api/v1/coach/evaluate`
+  * current extension/backend integration in this branch now prefers `POST /api/v2/events`
+  * browser payload now follows the canonical snake_case event contract:
+    * `schema_version`
+    * `event_id`
+    * `session_id`
+    * `ts`
+    * `source`
+    * `step_id`
+    * `event_type`
+    * `element_key`
+    * `raw_value`
+    * `derived_signals`
+    * `derived_context`
+    * `runner_metadata`
+    * `privacy_level`
+  * legacy fallback to `POST /api/v1/coach/evaluate` is still present for older local mocks, but the primary path is now aligned with your `origin/Farhan-Branch`
   * live-stored event types now reliably include `step_enter`, `step_resolved`, `coach_impression`, `coach_cta`, and `coach_dismiss`
   * derived context emitted by the extension now includes `sessionDurationMs`, a corrected incremental `priceDelta`, Step 7 field-completion data, and Step 8 consultation-choice field-completion data
   * if backend terminal-outcome logic keys off steps, the current live `s8_confirm` detection should be interpreted as advisor handoff on this journey
@@ -150,8 +167,8 @@ Notes:
   * the live smoke contains the exact synthetic Step 6 inputs needed to advance into Step 7 and then answer the post-Step-7 medical questions with `nein`
   * if runner metrics distinguish online conversion from advisor handoff, this current live branch path should be counted as advisor handoff rather than online confirm
 * Branch check:
-  * `origin/Farhan-branch` currently matches `origin/main`
-  * no separate `origin` branch for Andrii was present when checked
+  * `origin/Farhan-Branch` now contains the v2 telemetry API and session replay work David should target
+  * `origin/andrii-agent` now exists and shows active runner/trace orchestration progress
   * `origin/frontend` contains earlier extension/chat work and asset additions, but I did not see a newer backend interface change there that alters David’s current integration notes
 
 ---
