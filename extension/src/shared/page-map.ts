@@ -43,7 +43,7 @@ export function resolvePageStep(doc: Document): ResolvedStep | null {
 
     return {
       pageStepId: entry.pageStepId,
-      coachStepId: entry.coachStepId,
+      journeyStage: entry.journeyStage,
       injectionAnchor: entry.injectionAnchor,
       config: entry,
     };

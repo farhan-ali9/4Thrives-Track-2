@@ -1,18 +1,21 @@
 import { describe, expect, test } from "vitest";
-import type { NormalizedEvent, StepRuntimeState } from "@/shared/contracts";
+import type { JourneySessionState, NormalizedEvent } from "@/shared/contracts";
 import { deriveSignals } from "@/background/signal-detector";
 
-const baseState: StepRuntimeState = {
-  currentCoachStepId: "s4_initial_price",
-  currentStepId: "s4_initial_price",
-  fieldChangeCounts: {},
-  initialVisiblePrice: 41.3,
-  lastActivityAt: Date.now(),
-  lastDerivedContext: {},
-  lastVisiblePrice: 73.02,
-  selectedAddOns: [],
+const baseState: JourneySessionState = {
+  routeFamily: "online_doctor",
+  stage: "tariff_choice",
+  baselinePriceMonthly: 41.3,
+  latestPriceMonthly: 73.02,
+  selectedCoverage: ["doctor_visits"],
+  insuredPerson: "myself",
   selectedTariff: "optimal",
-  stepEnteredAt: Date.now() - 30_000,
+  selectedAddOns: [],
+  fieldChangeCounts: {},
+  lastDerivedContext: {},
+  lastInteractionAt: Date.now(),
+  lastAction: null,
+  lastShownPlayByStage: {},
 };
 
 describe("deriveSignals", () => {
@@ -71,11 +74,11 @@ function makeEvent(
   dwellMs: number | null = null,
 ): NormalizedEvent {
   return {
-    coachStepId: "s4_initial_price",
     derivedContext: {},
     dwellMs,
     elementKey,
     id: "evt_1",
+    journeyStage: "tariff_choice",
     pageStepId: "s4_initial_price",
     sessionId: "session_1",
     ts: Date.now(),

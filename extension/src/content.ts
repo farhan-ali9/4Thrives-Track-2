@@ -1,6 +1,7 @@
 import type {
-  CoachAction,
   DerivedContext,
+  JourneyDecision,
+  JourneyOutcome,
   NormalizedEvent,
   RuntimeChatResponse,
   RuntimeEventResponse,
@@ -15,14 +16,14 @@ import { PageObserver, type ObserverEvent } from "@/content/page-observer";
 const log = createLogger("content");
 
 const EMPTY_EVENT_RESPONSE: RuntimeEventResponse = {
-  actions: [],
+  decision: null,
   apiStatus: {
     endpoint: "chrome.runtime",
     lastUpdatedAt: Date.now(),
     message: "No runtime response",
-    policyVersion: null,
     state: "error",
   },
+  snapshot: null,
   signals: [],
 };
 let extensionContextInvalidated = false;
@@ -59,20 +60,20 @@ async function bootstrap(): Promise<void> {
       const observerStep = observer.getCurrentStep();
       const context = observer.getCurrentContext();
       void emit({
-        coachStepId: observerStep?.coachStepId ?? null,
         derivedContext: context,
         dwellMs: null,
-        elementKey: interaction.action.id,
+        elementKey: interaction.decision.playId,
         id: createId("evt"),
+        journeyStage: observerStep?.journeyStage ?? null,
         pageStepId: observerStep?.pageStepId ?? null,
         sessionId: init.sessionId,
         ts: Date.now(),
         type: interaction.type,
         value: {
-          actionKind: interaction.action.kind,
           cta: interaction.cta,
+          decisionId: interaction.decision.decisionId,
+          playId: interaction.decision.playId,
           ctaResult: interaction.result,
-          placement: interaction.action.placement,
         },
       });
     },
@@ -84,8 +85,9 @@ async function bootstrap(): Promise<void> {
           context: observer.getCurrentContext(),
           messages: request.messages,
           model: request.model,
-          pageStepId: step?.pageStepId ?? null,
+          routeFamily: responseState?.snapshot?.routeFamily ?? null,
           sessionId: init.sessionId,
+          stage: step?.journeyStage ?? null,
         },
         type: "uniqa:chat",
       });
@@ -101,10 +103,13 @@ async function bootstrap(): Promise<void> {
     init.chatModelOptions,
   );
 
+  let responseState: RuntimeEventResponse | null = null;
+
   async function emit(event: NormalizedEvent): Promise<RuntimeEventResponse> {
     const response = await sendRuntimeMessage<RuntimeEventResponse>({
       event,
       type: "uniqa:event",
+      url: window.location.href,
     });
     if (!response) {
       log.warn("No runtime response for event; using empty fallback", {
@@ -114,50 +119,45 @@ async function bootstrap(): Promise<void> {
       return EMPTY_EVENT_RESPONSE;
     }
     log.debug("Event response", {
-      actions: response.actions.length,
       apiState: response.apiStatus.state,
+      decision: response.decision?.playId ?? null,
       pageStepId: event.pageStepId,
       signals: response.signals,
       type: event.type,
     });
+    responseState = response;
     return response;
   }
 
-  async function renderActions(
-    actions: CoachAction[] | undefined,
+  async function renderDecision(
+    decision: JourneyDecision | null,
     context: DerivedContext,
   ): Promise<void> {
-    if (!actions?.length) {
-      log.debug("renderActions called with no actions; nothing to render");
+    if (!decision) {
+      log.debug("renderDecision called with no decision; nothing to render");
       return;
     }
 
-    const displayed = injector.render(actions, observer.getCurrentStep());
-    log.info("Rendered coach actions", {
-      displayed: displayed.length,
-      ids: displayed.map((action) => action.id),
-      received: actions.length,
+    const displayed = injector.render(decision, observer.getCurrentStep());
+    log.info("Rendered runtime decision", {
+      playId: displayed?.playId ?? null,
       step: observer.getCurrentStep()?.pageStepId ?? null,
     });
-    if (displayed.length) {
-      injector.addLogMessage(
-        `Rendered ${displayed.length} coach action${displayed.length === 1 ? "" : "s"}`,
-      );
-    }
-    for (const action of displayed) {
+    if (displayed) {
+      injector.addLogMessage(`Rendered ${displayed.playId}`);
       await emit({
-        coachStepId: observer.getCurrentStep()?.coachStepId ?? null,
         derivedContext: context,
         dwellMs: null,
-        elementKey: action.id,
+        elementKey: displayed.playId,
         id: createId("evt"),
+        journeyStage: observer.getCurrentStep()?.journeyStage ?? null,
         pageStepId: observer.getCurrentStep()?.pageStepId ?? null,
         sessionId: init.sessionId,
         ts: Date.now(),
         type: "coach_impression",
         value: {
-          actionKind: action.kind,
-          placement: action.placement,
+          decisionId: displayed.decisionId,
+          playId: displayed.playId,
         },
       });
     }
@@ -177,16 +177,16 @@ async function bootstrap(): Promise<void> {
       const runtimeEvent = buildObserverEvent(init.sessionId, event);
       const response = await emit(runtimeEvent);
       injector.updateStatus(response.apiStatus);
-      if (response.actions.length) {
-        await renderActions(response.actions, event.derivedContext);
+      if (response.decision) {
+        await renderDecision(response.decision, event.derivedContext);
       } else if (response.apiStatus.state === "connected") {
-        log.debug("API reachable, no coach action for this event", {
+        log.debug("API reachable, no runtime decision for this event", {
           step: event.step?.pageStepId ?? null,
           type: event.type,
         });
-        injector.addLogMessage("API reachable, no coach action for this event");
+        injector.addLogMessage("API reachable, no runtime decision for this event");
       } else {
-        log.warn("Coach API not connected for event", {
+        log.warn("Runtime API not connected for event", {
           apiState: response.apiStatus.state,
           message: response.apiStatus.message,
           type: event.type,
@@ -207,16 +207,16 @@ async function bootstrap(): Promise<void> {
         });
         const response = await emit(buildInteractionEvent(init.sessionId, observer, interaction));
         injector.updateStatus(response.apiStatus);
-        if (response.actions.length) {
-          await renderActions(response.actions, interaction.derivedContext);
+        if (response.decision) {
+          await renderDecision(response.decision, interaction.derivedContext);
         } else if (response.apiStatus.state === "connected") {
-          log.debug("API reachable, no coach action for this interaction", {
+          log.debug("API reachable, no runtime decision for this interaction", {
             elementKey: interaction.elementKey,
             type: interaction.type,
           });
-          injector.addLogMessage("API reachable, no coach action for this interaction");
+          injector.addLogMessage("API reachable, no runtime decision for this interaction");
         } else {
-          log.warn("Coach API not connected for interaction", {
+          log.warn("Runtime API not connected for interaction", {
             apiState: response.apiStatus.state,
             message: response.apiStatus.message,
             type: interaction.type,
@@ -258,11 +258,11 @@ function isExtensionContextInvalidated(error: unknown): boolean {
 
 function buildObserverEvent(sessionId: string, event: ObserverEvent): NormalizedEvent {
   return {
-    coachStepId: event.step?.coachStepId ?? null,
     derivedContext: event.derivedContext,
     dwellMs: event.dwellMs,
     elementKey: null,
     id: createId("evt"),
+    journeyStage: event.step?.journeyStage ?? null,
     pageStepId: event.step?.pageStepId ?? null,
     sessionId,
     ts: Date.now(),
@@ -278,11 +278,11 @@ function buildInteractionEvent(
 ): NormalizedEvent {
   const step = observer.getCurrentStep();
   return {
-    coachStepId: step?.coachStepId ?? null,
     derivedContext: event.derivedContext,
     dwellMs: null,
     elementKey: event.elementKey,
     id: createId("evt"),
+    journeyStage: step?.journeyStage ?? null,
     pageStepId: step?.pageStepId ?? null,
     sessionId,
     ts: Date.now(),

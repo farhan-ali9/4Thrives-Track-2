@@ -1,14 +1,14 @@
 # UNIQA Conversion Coach
 
-Workspace for the live Chrome extension, the production rule-driven coach API,
-the admin portal, and the original simulator/demo assets.
+Workspace for the live Chrome extension, the deterministic runtime API,
+and the original simulator/demo assets.
 
 ## Packages
 
-- `extension/`: Chrome extension that detects funnel state on the live UNIQA calculator and requests hints from the remote coach API.
-- `coach-api/`: Fastify + Prisma backend for coach evaluation, admin auth, policy versioning, and static serving of the admin SPA.
-- `admin-portal/`: React/Vite admin UI for policy settings, intervention copy, rules, and version restore.
-- `shared/`: Shared contracts, policy schema, and seeded default policy.
+- `extension/`: Chrome extension that classifies the live UNIQA calculator into route families and stages, then renders one runtime decision at a time.
+- `coach-api/`: Fastify + Prisma backend exposing the clean runtime endpoints for decisions, outcomes, and session replay.
+- `admin-portal/`: Legacy admin UI kept in the workspace but no longer required by the MVP runtime.
+- `shared/`: Shared runtime contracts and legacy policy artifacts still used by simulation tooling.
 - `coach_sim/`: Simulation backend used for the hackathon demo and synthetic evaluation.
 - `streamlit_app/`: Streamlit demo UI for the simulator.
 
@@ -33,8 +33,8 @@ python3 -m playwright install chromium
 
 ## Local Development
 
-Set environment variables from `.env.example`. For the coach API and admin
-portal, you need a Postgres database.
+Set environment variables from `.env.example`. For the coach API runtime you
+need a Postgres database.
 
 Start the local Postgres database:
 
@@ -57,14 +57,6 @@ Start the backend:
 npm run dev:coach-api
 ```
 
-Run the admin portal in standalone Vite mode:
-
-```bash
-npm run dev:admin
-```
-
-The Vite dev server proxies `/api/*` to `http://127.0.0.1:8787`.
-
 Build the extension:
 
 ```bash
@@ -84,23 +76,17 @@ The extension manifest is generated at build time and always includes:
 
 Public routes:
 
-- `POST /api/v1/coach/evaluate`
-- `POST /api/v1/admin/login`
-- `POST /api/v1/admin/logout`
-- `GET /api/v1/admin/me`
-- `GET /api/v1/admin/policy`
-- `PUT /api/v1/admin/policy`
-- `GET /api/v1/admin/policies`
-- `POST /api/v1/admin/policies/:id/restore`
+- `POST /api/runtime/decide`
+- `POST /api/runtime/outcome`
+- `GET /api/runtime/sessions/:id`
 - `GET /healthz`
 
 Important behavior:
 
-- The extension no longer falls back to a local mock engine.
-- Coach failures return `source: "remote_error"` with an empty `actions` array.
-- Policy versions are append-only snapshots stored in Postgres.
-- The bootstrap admin account is created or updated from environment variables
-  on startup.
+- The extension owns session state and sends compact journey snapshots.
+- The runtime returns at most one deterministic conversion play per request.
+- Postgres is used as a telemetry sink for snapshots, decisions, and outcomes.
+- The old policy/admin runtime is no longer part of the MVP request path.
 
 ## Build And Test
 

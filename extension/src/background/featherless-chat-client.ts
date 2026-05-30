@@ -134,7 +134,8 @@ function buildSystemPrompt(request: RuntimeChatRequest, model: string): string {
     "Keep answers concise, practical, and reassuring. Do not claim to be a licensed advisor.",
     "Scope: Start and Optimal can be completed online. Hospital, other persons, Opt. Plus, and Premium require advisor routing.",
     `Current model id: ${model}. If the user asks which model you are using, answer with this exact model id.`,
-    `Current page step: ${request.pageStepId ?? "unknown"}.`,
+    `Current route family: ${request.routeFamily ?? "unknown"}.`,
+    `Current journey stage: ${request.stage ?? "unknown"}.`,
     `Known context: ${JSON.stringify(request.context)}`,
   ].join("\n");
 }

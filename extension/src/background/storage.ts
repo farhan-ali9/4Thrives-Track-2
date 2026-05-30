@@ -1,15 +1,18 @@
 import type {
-  CoachRuntimeState,
+  JourneyDecision,
+  JourneyOutcome,
+  JourneySessionState,
+  JourneySnapshot,
   NormalizedEvent,
   SessionRecord,
-  StepRuntimeState,
 } from "@/shared/contracts";
 
 export const STORAGE_KEYS = {
-  coachState: "uniqa.coachState",
   events: "uniqa.events",
+  journeyState: "uniqa.journeyState",
+  outcomes: "uniqa.outcomes",
   session: "uniqa.session",
-  stepState: "uniqa.stepState",
+  snapshots: "uniqa.snapshots",
 } as const;
 
 export interface StorageAdapter {
@@ -42,30 +45,30 @@ export class MemoryStorageAdapter implements StorageAdapter {
 
 type SessionMap = Record<string, SessionRecord>;
 type EventMap = Record<string, NormalizedEvent[]>;
-type StepStateMap = Record<string, StepRuntimeState>;
-type CoachStateMap = Record<string, CoachRuntimeState>;
+type SnapshotMap = Record<string, JourneySnapshot[]>;
+type OutcomeMap = Record<string, JourneyOutcome[]>;
+type JourneyStateMap = Record<string, JourneySessionState>;
 
-const DEFAULT_STEP_STATE: StepRuntimeState = {
-  currentCoachStepId: null,
-  currentStepId: null,
-  fieldChangeCounts: {},
-  initialVisiblePrice: null,
-  lastActivityAt: null,
-  lastDerivedContext: {},
-  lastVisiblePrice: null,
-  selectedAddOns: [],
+const DEFAULT_JOURNEY_STATE: JourneySessionState = {
+  routeFamily: "online_doctor",
+  stage: null,
+  baselinePriceMonthly: null,
+  latestPriceMonthly: null,
+  selectedCoverage: [],
+  insuredPerson: null,
   selectedTariff: null,
-  stepEnteredAt: null,
-};
-
-const DEFAULT_COACH_STATE: CoachRuntimeState = {
-  shownActionTimestamps: {},
+  selectedAddOns: [],
+  fieldChangeCounts: {},
+  lastDerivedContext: {},
+  lastInteractionAt: null,
+  lastAction: null,
+  lastShownPlayByStage: {},
 };
 
 export class UniqaStorage {
   constructor(
     private readonly adapter: StorageAdapter,
-    private readonly maxEventsPerSession = 200,
+    private readonly maxEntriesPerSession = 200,
   ) {}
 
   async ensureSession(tabId: number, url: string, preferredSessionId?: string): Promise<SessionRecord> {
@@ -86,53 +89,78 @@ export class UniqaStorage {
   }
 
   async appendEvent(sessionId: string, event: NormalizedEvent): Promise<NormalizedEvent[]> {
-    const events = (await this.adapter.get<EventMap>(STORAGE_KEYS.events)) ?? {};
-    const sessionEvents = events[sessionId] ?? [];
+    const entries = (await this.adapter.get<EventMap>(STORAGE_KEYS.events)) ?? {};
+    const sessionEvents = entries[sessionId] ?? [];
     sessionEvents.push(event);
-    events[sessionId] = sessionEvents.slice(-this.maxEventsPerSession);
-    await this.adapter.set(STORAGE_KEYS.events, events);
-    return events[sessionId];
+    entries[sessionId] = sessionEvents.slice(-this.maxEntriesPerSession);
+    await this.adapter.set(STORAGE_KEYS.events, entries);
+    return entries[sessionId];
   }
 
   async getRecentEvents(sessionId: string, limit = 25): Promise<NormalizedEvent[]> {
-    const events = (await this.adapter.get<EventMap>(STORAGE_KEYS.events)) ?? {};
-    return (events[sessionId] ?? []).slice(-limit);
+    const entries = (await this.adapter.get<EventMap>(STORAGE_KEYS.events)) ?? {};
+    return (entries[sessionId] ?? []).slice(-limit);
   }
 
-  async getStepState(sessionId: string): Promise<StepRuntimeState> {
-    const state = (await this.adapter.get<StepStateMap>(STORAGE_KEYS.stepState)) ?? {};
-    return state[sessionId] ?? createDefaultStepState();
+  async getJourneyState(sessionId: string): Promise<JourneySessionState> {
+    const entries = (await this.adapter.get<JourneyStateMap>(STORAGE_KEYS.journeyState)) ?? {};
+    return entries[sessionId] ?? createDefaultJourneyState();
   }
 
-  async setStepState(sessionId: string, stepState: StepRuntimeState): Promise<void> {
-    const state = (await this.adapter.get<StepStateMap>(STORAGE_KEYS.stepState)) ?? {};
-    state[sessionId] = stepState;
-    await this.adapter.set(STORAGE_KEYS.stepState, state);
+  async setJourneyState(sessionId: string, state: JourneySessionState): Promise<void> {
+    const entries = (await this.adapter.get<JourneyStateMap>(STORAGE_KEYS.journeyState)) ?? {};
+    entries[sessionId] = state;
+    await this.adapter.set(STORAGE_KEYS.journeyState, entries);
   }
 
-  async getCoachState(sessionId: string): Promise<CoachRuntimeState> {
-    const state = (await this.adapter.get<CoachStateMap>(STORAGE_KEYS.coachState)) ?? {};
-    return state[sessionId] ?? createDefaultCoachState();
+  async appendSnapshot(sessionId: string, snapshot: JourneySnapshot): Promise<void> {
+    const entries = (await this.adapter.get<SnapshotMap>(STORAGE_KEYS.snapshots)) ?? {};
+    const sessionSnapshots = entries[sessionId] ?? [];
+    sessionSnapshots.push(snapshot);
+    entries[sessionId] = sessionSnapshots.slice(-this.maxEntriesPerSession);
+    await this.adapter.set(STORAGE_KEYS.snapshots, entries);
   }
 
-  async setCoachState(sessionId: string, coachState: CoachRuntimeState): Promise<void> {
-    const state = (await this.adapter.get<CoachStateMap>(STORAGE_KEYS.coachState)) ?? {};
-    state[sessionId] = coachState;
-    await this.adapter.set(STORAGE_KEYS.coachState, state);
+  async appendOutcome(sessionId: string, outcome: JourneyOutcome): Promise<void> {
+    const entries = (await this.adapter.get<OutcomeMap>(STORAGE_KEYS.outcomes)) ?? {};
+    const sessionOutcomes = entries[sessionId] ?? [];
+    sessionOutcomes.push(outcome);
+    entries[sessionId] = sessionOutcomes.slice(-10);
+    await this.adapter.set(STORAGE_KEYS.outcomes, entries);
+  }
+
+  async markDecisionShown(
+    sessionId: string,
+    stage: NonNullable<JourneySessionState["stage"]>,
+    decision: JourneyDecision,
+    shownAt: number,
+  ): Promise<void> {
+    const state = await this.getJourneyState(sessionId);
+    const next: JourneySessionState = {
+      ...state,
+      fieldChangeCounts: { ...state.fieldChangeCounts },
+      lastDerivedContext: { ...state.lastDerivedContext },
+      selectedAddOns: [...state.selectedAddOns],
+      selectedCoverage: [...state.selectedCoverage],
+      lastShownPlayByStage: {
+        ...state.lastShownPlayByStage,
+        [stage]: {
+          playId: decision.playId,
+          shownAt,
+        },
+      },
+    };
+    await this.setJourneyState(sessionId, next);
   }
 }
 
-function createDefaultStepState(): StepRuntimeState {
+function createDefaultJourneyState(): JourneySessionState {
   return {
-    ...DEFAULT_STEP_STATE,
+    ...DEFAULT_JOURNEY_STATE,
     fieldChangeCounts: {},
     lastDerivedContext: {},
     selectedAddOns: [],
-  };
-}
-
-function createDefaultCoachState(): CoachRuntimeState {
-  return {
-    shownActionTimestamps: {},
+    selectedCoverage: [],
+    lastShownPlayByStage: {},
   };
 }
