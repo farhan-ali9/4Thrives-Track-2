@@ -140,16 +140,48 @@ Do not edit:
 * browser-runner/*
 * ops-console/* unless agreed
 
-Status: Not started
+Status: In progress
 
 Files currently being edited:
 
-* none
+* coach-api/prisma/schema.prisma — adding SessionTraceEvent, ModelInferenceResult, InterventionExposure, JourneyOutcome models
+* coach-api/prisma/migrations/20260530120000_add_telemetry/migration.sql — new migration for telemetry tables
+* coach-api/src/repository.ts — extending CoachRepository interface + MemoryCoachRepository with v2 telemetry methods
+* coach-api/src/prisma-repository.ts — implementing v2 methods in PrismaCoachRepository
+* coach-api/src/guardrails.ts — hard deterministic guardrails (hospital, other persons, Opt. Plus, Premium → advisor_handoff)
+* coach-api/src/session-state.ts — session state reconstruction from event history + risk scoring
+* coach-api/src/routes-v2.ts — all /api/v2/* route handlers
+* coach-api/src/app.ts — registering v2 routes
+* coach-api/tests/routes-v2.test.ts — tests for guardrails, intervention selection, scope routing
 
-Last update: TBD
+Start time: 2026-05-30T12:00:00Z
+
+Plan:
+1. Add Prisma telemetry models + migration
+2. Extend repository with v2 store/read methods
+3. Implement hard guardrails (deterministic, non-trainable)
+4. Implement session state reconstruction (tracks tariff, coverage, insured person, intervention history)
+5. Implement risk scoring (0–100 from dwell, back nav, cancel hover, etc.)
+6. Add /api/v2/events, /api/v2/inference, /api/v2/exposures, /api/v2/outcomes, GET /api/v2/sessions/:id
+7. Add comprehensive tests
+
+Last update: 2026-05-30T12:00:00Z
 
 Notes:
 Farhan owns the decision API and telemetry plane. The backend must be inspectable and should not become a pure LLM wrapper. Hard routing logic must remain deterministic.
+
+Notes for David:
+- v2 event schema: POST /api/v2/events expects { schema_version, event_id, session_id, ts, source, step_id, event_type, element_key, raw_value, derived_signals, derived_context, runner_metadata, privacy_level }
+- derived_context should include selectedTariff, coverage, insuredPerson when known
+- derived_signals should include path_oos:true or tariff_click_oos:true for OOS events
+- POST /api/v2/events returns { ok: true, actions: CoachAction[] }
+- v1 endpoint /api/v1/coach/evaluate still works for direct policy evaluation
+
+Notes for Andrii:
+- GET /api/v2/sessions/:id returns full trace { sessionId, events, decisions, exposures, outcome }
+- Outcome values: converted_online | abandoned | advisor_handoff
+- advisor_handoff does NOT count as online conversion
+- Risk score (0–100) is stored with each inference result for evaluation
 
 ---
 
