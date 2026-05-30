@@ -172,11 +172,19 @@
   {
     "pageStepId": "s7_final_price",
     "coachStepId": "s7_final_price",
-    "verified": false,
-    "enabled": false,
+    "verified": true,
+    "enabled": true,
     "match": {
-      "requiredText": ["Finale Prämie", "Abschluss"],
-      "requiredSelectorsAll": ["[data-cy='nextStepButton']"]
+      "requiredText": [
+        "Bisherige Versicherungen",
+        "Sind Sie oder waren Sie in den letzten 7 Jahren privat krankenversichert?",
+        "Wurden Anträge abgelehnt oder Verträge durch den Versicherer gekündigt?"
+      ],
+      "requiredSelectorsAll": [
+        "[data-cy='insuranceInPast7Years']",
+        "[data-cy='rejectedApplication']",
+        "[data-cy='nextStepButton']"
+      ]
     },
     "selectors": {
       "stepAnchor": ["body"],
@@ -187,6 +195,14 @@
       "priceText": ["body"]
     },
     "extractors": [
+      {
+        "key": "fieldCompletion",
+        "kind": "fieldCompletion",
+        "selectors": [
+          "[data-cy='insuranceInPast7Years'] input[type='radio']",
+          "[data-cy='rejectedApplication'] input[type='radio']"
+        ]
+      },
       { "key": "visiblePrice", "kind": "visiblePrice", "selectors": ["body"] },
       { "key": "priceDelta", "kind": "priceDelta", "selectors": ["body"] },
       { "key": "validationErrorCount", "kind": "validationErrorCount" },
@@ -197,11 +213,18 @@
   {
     "pageStepId": "s8_confirm",
     "coachStepId": "s8_confirm",
-    "verified": false,
-    "enabled": false,
+    "verified": true,
+    "enabled": true,
     "match": {
-      "requiredText": ["Zusammenfassung", "Jetzt abschließen"],
-      "requiredSelectorsAll": ["[data-cy='nextStepButton']"]
+      "requiredText": [
+        "Berateranfrage",
+        "Wo soll die Beratung bevorzugt stattfinden?",
+        "Online Videoberatung"
+      ],
+      "requiredSelectorsAll": [
+        "[data-cy='consultationContact']",
+        "[data-cy='nextStepButton']"
+      ]
     },
     "selectors": {
       "stepAnchor": ["body"],
@@ -210,6 +233,13 @@
       "cancelTargets": ["[data-cy='backButton']"]
     },
     "extractors": [
+      {
+        "key": "fieldCompletion",
+        "kind": "fieldCompletion",
+        "selectors": ["[data-cy='consultationContact'] input[type='radio']"]
+      },
+      { "key": "visiblePrice", "kind": "visiblePrice", "selectors": ["body"] },
+      { "key": "priceDelta", "kind": "priceDelta", "selectors": ["body"] },
       { "key": "validationErrorCount", "kind": "validationErrorCount" },
       { "key": "sessionDurationMs", "kind": "sessionTiming" }
     ],

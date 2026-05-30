@@ -1,4 +1,5 @@
 import type { DerivedContext, NormalizedEventType, ResolvedStep } from "@/shared/contracts";
+import { readText } from "@/shared/dom-utils";
 import { deriveContextFromDocument } from "@/shared/extractors";
 import { slugify } from "@/shared/dom-utils";
 import { queryFirst } from "@/shared/page-map";
@@ -76,6 +77,7 @@ export class DataCollector {
   };
 
   private readonly handleFocus = (event: Event): void => {
+    this.resetInactivityTimer();
     const element = resolveInteractiveElement(event.target);
     if (!element) {
       return;
@@ -84,6 +86,7 @@ export class DataCollector {
   };
 
   private readonly handleBlur = (event: Event): void => {
+    this.resetInactivityTimer();
     const element = resolveInteractiveElement(event.target);
     if (!element) {
       return;
@@ -92,6 +95,7 @@ export class DataCollector {
   };
 
   private readonly handlePointerEnter = (event: Event): void => {
+    this.resetInactivityTimer();
     if (!(event.target instanceof Element)) {
       return;
     }
@@ -264,20 +268,28 @@ function buildSanitizedValue(
   }
 
   const ariaLabel = element.getAttribute("aria-label") ?? "";
-  if (/Wählen\s+(Opt\.\s*Plus|Premium)/i.test(ariaLabel)) {
+  const optionLabel = normalizeChoiceLabel(ariaLabel || readText(element));
+  if (!optionLabel) {
+    return null;
+  }
+
+  if (optionLabel.includes("krankenhaus") || optionLabel.includes("andere_personen")) {
+    return {
+      intent: "out_of_scope_path",
+      option: optionLabel,
+    };
+  }
+
+  if (optionLabel === "opt_plus" || optionLabel === "premium") {
     return {
       intent: "out_of_scope_tariff",
-      option: slugify(ariaLabel.replace(/^Wählen\s+/i, "")),
+      option: optionLabel,
     };
   }
 
-  if (/Wählen\s+/i.test(ariaLabel)) {
-    return {
-      option: slugify(ariaLabel.replace(/^Wählen\s+/i, "")),
-    };
-  }
-
-  return null;
+  return {
+    option: optionLabel,
+  };
 }
 
 function matchesAnySelector(element: Element, selectors: string[]): boolean {
@@ -294,4 +306,9 @@ export function findPrimaryAnchor(step: ResolvedStep | null): Element | null {
     return null;
   }
   return queryFirst(document, step.config.selectors.primaryCta);
+}
+
+function normalizeChoiceLabel(raw: string | null): string | null {
+  const normalized = slugify((raw ?? "").replace(/^Wahlen?\s+/i, "").replace(/^Wählen\s+/i, ""));
+  return normalized || null;
 }

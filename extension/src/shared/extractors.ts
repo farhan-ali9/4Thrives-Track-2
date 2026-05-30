@@ -2,6 +2,8 @@ import type { DerivedContext, ExtractorConfig, ResolvedStep } from "./contracts"
 import { computeAgeBand, parseEuroValue, readText } from "./dom-utils";
 import { queryFirst } from "./page-map";
 
+const documentSessionStartedAt = new WeakMap<Document, number>();
+
 const SOCIAL_PROVIDER_CODES: Record<string, string> = {
   "BVAEB-EB": "bvaeb_eb",
   "BVAEB-OEB": "bvaeb_oeb",
@@ -31,7 +33,7 @@ function readInputValue(element: Element | null): string {
   if (!element) {
     return "";
   }
-  if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+  if (isTextInputElement(element) || isTextAreaElement(element)) {
     return element.value;
   }
   return readText(element);
@@ -55,7 +57,7 @@ function extractSelectedAddOns(doc: Document, selectors: string[]): string[] {
   const values: string[] = [];
 
   for (const element of queryAll(doc, selectors)) {
-    if (!(element instanceof HTMLInputElement) || element.type !== "checkbox" || !element.checked) {
+    if (!isInputElement(element) || element.type !== "checkbox" || !element.checked) {
       continue;
     }
 
@@ -69,7 +71,7 @@ function extractSelectedAddOns(doc: Document, selectors: string[]): string[] {
 
 function extractFieldCompletion(doc: Document, selectors: string[]): number | null {
   const fields = queryAll(doc, selectors).filter((element) => {
-    if (element instanceof HTMLInputElement) {
+    if (isInputElement(element)) {
       return !["hidden", "submit", "button"].includes(element.type);
     }
     return true;
@@ -81,7 +83,7 @@ function extractFieldCompletion(doc: Document, selectors: string[]): number | nu
 
   let completed = 0;
   for (const field of fields) {
-    if (field instanceof HTMLInputElement) {
+    if (isInputElement(field)) {
       if (field.type === "checkbox" || field.type === "radio") {
         if (field.checked) {
           completed += 1;
@@ -94,7 +96,7 @@ function extractFieldCompletion(doc: Document, selectors: string[]): number | nu
       continue;
     }
 
-    if (field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement) {
+    if (isTextAreaElement(field) || isSelectElement(field)) {
       if (field.value.trim()) {
         completed += 1;
       }
@@ -158,13 +160,18 @@ export function deriveContextFromDocument(
   const result: DerivedContext = { ...baseContext };
 
   for (const extractor of resolvedStep.config.extractors) {
-    applyExtractor(doc, extractor, result);
+    applyExtractor(doc, extractor, result, baseContext);
   }
 
   return result;
 }
 
-function applyExtractor(doc: Document, extractor: ExtractorConfig, result: DerivedContext): void {
+function applyExtractor(
+  doc: Document,
+  extractor: ExtractorConfig,
+  result: DerivedContext,
+  baseContext: DerivedContext,
+): void {
   const selectors = extractor.selectors ?? [];
 
   switch (extractor.kind) {
@@ -200,14 +207,16 @@ function applyExtractor(doc: Document, extractor: ExtractorConfig, result: Deriv
     case "priceDelta": {
       const current = extractVisiblePrice(doc, selectors);
       if (current !== null) {
+        const previousVisiblePrice = baseContext.visiblePrice ?? null;
         result.priceDelta =
-          result.visiblePrice !== undefined && result.visiblePrice !== null
-            ? Number((current - result.visiblePrice).toFixed(2))
+          previousVisiblePrice !== null
+            ? Number((current - previousVisiblePrice).toFixed(2))
             : result.priceDelta ?? null;
       }
       return;
     }
     case "sessionTiming": {
+      result.sessionDurationMs = getSessionDurationMs(doc);
       return;
     }
     default: {
@@ -215,4 +224,34 @@ function applyExtractor(doc: Document, extractor: ExtractorConfig, result: Deriv
       throw new Error(`Unsupported extractor kind: ${neverReached}`);
     }
   }
+}
+
+function getSessionDurationMs(doc: Document): number {
+  const existingStart = documentSessionStartedAt.get(doc);
+  const now = Date.now();
+  if (existingStart === undefined) {
+    documentSessionStartedAt.set(doc, now);
+    return 0;
+  }
+
+  return Math.max(0, now - existingStart);
+}
+
+function isInputElement(element: Element): element is HTMLInputElement {
+  const view = element.ownerDocument?.defaultView;
+  return Boolean(view && element instanceof view.HTMLInputElement);
+}
+
+function isTextInputElement(element: Element): element is HTMLInputElement {
+  return isInputElement(element);
+}
+
+function isTextAreaElement(element: Element): element is HTMLTextAreaElement {
+  const view = element.ownerDocument?.defaultView;
+  return Boolean(view && element instanceof view.HTMLTextAreaElement);
+}
+
+function isSelectElement(element: Element): element is HTMLSelectElement {
+  const view = element.ownerDocument?.defaultView;
+  return Boolean(view && element instanceof view.HTMLSelectElement);
 }
