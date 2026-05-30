@@ -24,17 +24,41 @@ Python/Streamlit tooling remains separate:
 python -m pip install -r streamlit_app/requirements.txt
 ```
 
-## Local Development
+## Local Startup
 
-Set environment variables from `.env.example`. For the coach API and admin
-portal, you need a Postgres database.
+Set environment variables from `.env.example`. The coach API and admin portal
+use Postgres, and the local database container is exposed on host port `5433`.
 
-Start the local Postgres database:
+1. Start the database:
 
 ```bash
 npm run db:up
-npm run db:migrate
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5433/conversion_coach npm run db:migrate
 ```
+
+2. Start the backend/API:
+
+```bash
+npm run dev:coach-api
+```
+
+The API listens on `http://127.0.0.1:8787`.
+
+3. Start the admin portal:
+
+```bash
+npm run dev:admin
+```
+
+The Vite dev server proxies `/api/*` to `http://127.0.0.1:8787`.
+
+4. Build and load the extension:
+
+```bash
+npm run build:extension
+```
+
+Load `extension/dist` as an unpacked Chrome extension.
 
 Useful database commands:
 
@@ -43,28 +67,6 @@ npm run db:logs
 npm run db:down
 npm run db:reset
 ```
-
-Start the backend:
-
-```bash
-npm run dev:coach-api
-```
-
-Run the admin portal in standalone Vite mode:
-
-```bash
-npm run dev:admin
-```
-
-The Vite dev server proxies `/api/*` to `http://127.0.0.1:8787`.
-
-Build the extension:
-
-```bash
-npm run build:extension
-```
-
-Load `extension/dist` as an unpacked Chrome extension.
 
 The extension manifest is generated at build time and always includes:
 
@@ -114,20 +116,39 @@ npm run test:live
 
 ## DigitalOcean Deployment
 
-Files added for deployment:
+The production deployment runs the API/backend and the built admin SPA from the
+same Docker image. The key file is:
 
-- [Dockerfile](/Users/davidklingbeil2/Documents/Hackathon/Uniqa_hackathon/4Thrives-Track-2/Dockerfile)
-- [.do/app.yaml](/Users/davidklingbeil2/Documents/Hackathon/Uniqa_hackathon/4Thrives-Track-2/.do/app.yaml)
-- [coach-api/prisma/migrations/20260530111500_init/migration.sql](/Users/davidklingbeil2/Documents/Hackathon/Uniqa_hackathon/4Thrives-Track-2/coach-api/prisma/migrations/20260530111500_init/migration.sql)
+- [Dockerfile](Dockerfile)
 
-The App Platform template expects:
+The Dockerfile already contains both the build and runtime commands:
 
-- a Docker build from the repo root
-- one web service serving both the API and built admin SPA
-- one managed Postgres database exposed to the service as `DATABASE_URL`
-- runtime secrets for `SESSION_SECRET` and bootstrap admin credentials
+- build stage:
+  - installs dependencies with `npm ci`
+  - builds `shared`, `coach-api`, and `admin-portal`
+- runtime stage:
+  - starts the API with `npm run start --workspace coach-api`
 
-Update `.do/app.yaml` with the real GitHub repo before deploying.
+Build and run the container directly:
+
+```bash
+docker build -t uniqa-conversion-coach .
+docker run --rm \
+  -p 8080:8080 \
+  -e DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/conversion_coach \
+  -e SESSION_SECRET=replace-me \
+  -e BOOTSTRAP_ADMIN_EMAIL=admin@example.com \
+  -e BOOTSTRAP_ADMIN_PASSWORD=admin \
+  -e BOOTSTRAP_ADMIN_NAME="Conversion Coach Admin" \
+  uniqa-conversion-coach
+```
+
+For DigitalOcean, create an App Platform app or container deployment from the
+repo root and point it at this Dockerfile. Configure the managed Postgres
+database as `DATABASE_URL` and set the bootstrap admin credentials as secrets.
+
+After deployment, verify the health endpoint at `/healthz` and use the admin
+portal to confirm the bootstrapped account can log in.
 
 ## Known Limitation
 
