@@ -19,6 +19,7 @@ import {
 import type { AppConfig } from "./config";
 import { evaluateCoachRequest } from "./policy-engine";
 import type { CoachRepository, PolicyVersionRecord } from "./repository";
+import { registerV2Routes } from "./routes-v2";
 
 interface CreateAppOptions {
   config: AppConfig;
@@ -61,6 +62,10 @@ export async function createApp(options: CreateAppOptions): Promise<FastifyInsta
   app.get("/healthz", async () => ({
     status: "ok",
   }));
+
+  await registerV2Routes(app, options.repository, () =>
+    getRequiredActivePolicy(options.repository),
+  );
 
   app.post<{ Body: CoachRequest; Reply: CoachResponse }>(
     "/api/v1/coach/evaluate",
