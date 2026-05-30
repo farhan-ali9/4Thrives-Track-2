@@ -305,6 +305,7 @@ describe("POST /api/v2/events guardrail integration", () => {
     const body = res.json();
     expect(body.ok).toBe(true);
     expect(body.actions[0]?.kind).toBe("advisor_handoff");
+    expect(body.actions[0]?.cta?.type).toBe("advisor_handoff");
 
     await app.close();
   });
@@ -341,6 +342,7 @@ describe("POST /api/v2/events guardrail integration", () => {
 
     const body = res.json();
     expect(body.actions[0]?.kind).toBe("tariff_route_explainer");
+    expect(body.actions[0]?.cta?.target).toBe("optimal");
 
     await app.close();
   });
@@ -673,7 +675,9 @@ describe("GET /api/v2/sessions/:id", () => {
     expect(trace.session_id).toBe(sid);
     expect(Array.isArray(trace.events)).toBe(true);
     expect(trace.events.length).toBeGreaterThan(0);
+    expect(trace.events[0]?.raw_value).toBeTruthy();
     expect(Array.isArray(trace.decisions)).toBe(true);
+    expect(trace.decisions[0]?.ranked_candidates).toBeTruthy();
     expect(Array.isArray(trace.exposures)).toBe(true);
     expect(trace.exposures.length).toBeGreaterThan(0);
     expect(trace.outcome?.outcome).toBe("converted_online");

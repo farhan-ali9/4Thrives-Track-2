@@ -3,6 +3,22 @@ export type CoachPlacement =
   | "near-primary-cta"
   | "bottom-toast";
 
+export type CoachCtaType =
+  | "select_tariff"
+  | "continue"
+  | "focus_field"
+  | "open_chat"
+  | "advisor_handoff"
+  | "save_progress";
+
+export interface CoachCta {
+  label: string;
+  type: CoachCtaType;
+  target: string | null;
+  prompt: string | null;
+  telemetryKey: string | null;
+}
+
 export type NormalizedEventType =
   | "step_enter"
   | "step_leave"
@@ -80,6 +96,7 @@ export interface CoachAction {
   placement: CoachPlacement;
   title: string;
   body: string;
+  cta: CoachCta | null;
   ctaLabel: string | null;
   dismissible: boolean;
   cooldownMs: number;

@@ -4,7 +4,7 @@ import type {
   CoachPolicyEvent,
   CoachPolicyRule,
 } from "@uniqa-conversion-coach/shared";
-import type { CoachPlacement } from "@uniqa-conversion-coach/shared/contracts";
+import type { CoachCta, CoachCtaType, CoachPlacement } from "@uniqa-conversion-coach/shared/contracts";
 
 type TabKey = "overview" | "interventions" | "rules" | "versions";
 
@@ -49,6 +49,15 @@ const PLACEMENTS: CoachPlacement[] = [
   "inline-top-of-step",
   "near-primary-cta",
   "bottom-toast",
+];
+
+const CTA_TYPES: CoachCtaType[] = [
+  "select_tariff",
+  "continue",
+  "focus_field",
+  "open_chat",
+  "advisor_handoff",
+  "save_progress",
 ];
 
 export function App() {
@@ -193,6 +202,23 @@ export function App() {
     }));
   }
 
+  function buildCta(
+    intervention: CoachPolicyDocument["interventions"][string],
+    interventionId: string,
+    overrides: Partial<CoachCta> = {},
+  ): CoachCta {
+    return {
+      label: overrides.label ?? intervention.cta?.label ?? intervention.ctaLabel ?? "Open coach",
+      prompt: overrides.prompt !== undefined ? overrides.prompt : intervention.cta?.prompt ?? null,
+      target: overrides.target !== undefined ? overrides.target : intervention.cta?.target ?? null,
+      telemetryKey:
+        overrides.telemetryKey !== undefined
+          ? overrides.telemetryKey
+          : intervention.cta?.telemetryKey ?? interventionId,
+      type: overrides.type ?? intervention.cta?.type ?? "open_chat",
+    };
+  }
+
   function addIntervention(): void {
     const nextId = window.prompt("New intervention id");
     if (!nextId || !policyRecord) {
@@ -206,6 +232,7 @@ export function App() {
         [nextId]: {
           body: "",
           category: "custom",
+          cta: null,
           ctaLabel: null,
           intent: "",
           label: nextId,
@@ -548,7 +575,80 @@ export function App() {
                             ...current.interventions,
                             [selectedInterventionId!]: {
                               ...current.interventions[selectedInterventionId!],
+                              cta: current.interventions[selectedInterventionId!].cta
+                                ? buildCta(current.interventions[selectedInterventionId!], selectedInterventionId!, {
+                                    label: event.target.value || "Open coach",
+                                  })
+                                : null,
                               ctaLabel: event.target.value || null,
+                            },
+                          },
+                        }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    CTA action
+                    <select
+                      value={selectedIntervention.cta?.type ?? "open_chat"}
+                      onChange={(event) =>
+                        updatePolicy((current) => ({
+                          ...current,
+                          interventions: {
+                            ...current.interventions,
+                            [selectedInterventionId!]: {
+                              ...current.interventions[selectedInterventionId!],
+                              cta: buildCta(current.interventions[selectedInterventionId!], selectedInterventionId!, {
+                                type: event.target.value as CoachCtaType,
+                              }),
+                            },
+                          },
+                        }))
+                      }
+                    >
+                      {CTA_TYPES.map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    CTA target
+                    <input
+                      value={selectedIntervention.cta?.target ?? ""}
+                      onChange={(event) =>
+                        updatePolicy((current) => ({
+                          ...current,
+                          interventions: {
+                            ...current.interventions,
+                            [selectedInterventionId!]: {
+                              ...current.interventions[selectedInterventionId!],
+                              cta: buildCta(current.interventions[selectedInterventionId!], selectedInterventionId!, {
+                                target: event.target.value || null,
+                              }),
+                            },
+                          },
+                        }))
+                      }
+                      placeholder="primary_cta, optimal, step_anchor, CSS selector"
+                    />
+                  </label>
+                  <label className="full-span">
+                    CTA chat prompt
+                    <textarea
+                      rows={3}
+                      value={selectedIntervention.cta?.prompt ?? ""}
+                      onChange={(event) =>
+                        updatePolicy((current) => ({
+                          ...current,
+                          interventions: {
+                            ...current.interventions,
+                            [selectedInterventionId!]: {
+                              ...current.interventions[selectedInterventionId!],
+                              cta: buildCta(current.interventions[selectedInterventionId!], selectedInterventionId!, {
+                                prompt: event.target.value || null,
+                              }),
                             },
                           },
                         }))

@@ -13,6 +13,8 @@ describe("policy engine", () => {
 
     const actions = evaluateCoachRequest(request, seedPolicy);
     expect(actions[0]?.id).toBe("tariff_route_explainer");
+    expect(actions[0]?.cta?.type).toBe("select_tariff");
+    expect(actions[0]?.cta?.target).toBe("optimal");
   });
 
   test("respects the intervention budget for budgeted rules", () => {
@@ -57,6 +59,7 @@ describe("policy engine", () => {
     const actions = evaluateCoachRequest(request, seedPolicy);
     expect(actions[0]?.id).toBe("simplified_explanation");
     expect(actions[0]?.placement).toBe("near-primary-cta");
+    expect(actions[0]?.cta?.type).toBe("continue");
   });
 
   test("derives final-price shock events from the current offer delta", () => {

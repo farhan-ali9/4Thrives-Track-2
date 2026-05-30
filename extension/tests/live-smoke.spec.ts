@@ -102,6 +102,13 @@ test("loads the built extension on the live calculator and stores coach interact
           ? [
               {
                 body: "This is a mocked coach action from the live smoke test.",
+                cta: {
+                  label: "Continue",
+                  prompt: "Help me continue the current calculator step.",
+                  target: "primary_cta",
+                  telemetryKey: "live_smoke_continue",
+                  type: "continue",
+                },
                 cooldownMs: 30_000,
                 ctaLabel: "Continue",
                 dismissible: true,
