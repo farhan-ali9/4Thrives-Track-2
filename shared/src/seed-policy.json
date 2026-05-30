@@ -154,7 +154,9 @@
   "placementByStep": {
     "description": "Step-specific default placements. Price and add-on decisions are placed near the primary CTA because the coach should support the next decision.",
     "s4_initial_price": "near-primary-cta",
-    "s5_add_ons": "near-primary-cta"
+    "s5_add_ons": "near-primary-cta",
+    "s6_personal_medical_data": "inline-top-of-step",
+    "s7_final_price": "near-primary-cta"
   },
   "interventions": {
     "none": {
@@ -190,7 +192,8 @@
         "User hesitates on personal quote data",
         "User shows cancel intent near final confirmation"
       ],
-      "rationale": "The coach addresses trust friction without collecting or storing raw sensitive values."
+      "rationale": "The coach addresses trust friction without collecting or storing raw sensitive values.",
+      "cooldownMs": 45000
     },
     "price_reframe": {
       "label": "Price reframe",
@@ -203,7 +206,8 @@
         "User fixates on price",
         "User appears close to leaving on initial price"
       ],
-      "rationale": "The price page is the strongest known drop-off point, so the coach explains value without discounting or changing the product."
+      "rationale": "The price page is the strongest known drop-off point, so the coach explains value without discounting or changing the product.",
+      "cooldownMs": 30000
     },
     "market_comparison": {
       "label": "Market comparison",
@@ -216,7 +220,8 @@
         "User navigates backward from the price page",
         "Price reframe has already been shown in this journey"
       ],
-      "rationale": "Prevents comparison-shopping abandonment by providing an in-flow benchmark."
+      "rationale": "Prevents comparison-shopping abandonment by providing an in-flow benchmark.",
+      "cooldownMs": 30000
     },
     "price_gap_transparency": {
       "label": "Price gap transparency",
@@ -229,7 +234,8 @@
         "Final price increase crosses the configured threshold",
         "User shows cancel intent at final price"
       ],
-      "rationale": "Late-stage price changes create abandonment risk unless the reason is made explicit."
+      "rationale": "Late-stage price changes create abandonment risk unless the reason is made explicit.",
+      "cooldownMs": 30000
     },
     "tariff_route_explainer": {
       "label": "Advisor-only tariff explainer",
@@ -243,6 +249,7 @@
         "User clicks Premium"
       ],
       "rationale": "The user expressed tariff interest, so this keeps the online path honest while preserving a route to completion.",
+      "cooldownMs": 30000,
       "bypassBudget": true
     },
     "advisor_route": {
@@ -272,7 +279,8 @@
         "Final price transparency and trust signal were already shown",
         "User still has late-stage hesitation"
       ],
-      "rationale": "Keeps a qualified user from losing progress without forcing immediate purchase."
+      "rationale": "Keeps a qualified user from losing progress without forcing immediate purchase.",
+      "cooldownMs": 45000
     }
   },
   "rules": [
@@ -362,6 +370,20 @@
     },
     {
       "priority": 70,
+      "id": "medical_data_hesitation",
+      "name": "Reassure user during medical data entry",
+      "stepId": "s6_personal_medical_data",
+      "anyEvents": [],
+      "anyEventsGroup": "hesitation",
+      "interventions": ["trust_signal"],
+      "bypassBudget": false,
+      "userSituation": "The visitor hesitates while answering medical and doctor questions.",
+      "businessReason": "Medical data questions create privacy friction late enough that a user is otherwise qualified.",
+      "expectedOutcome": "User understands why the data is needed and continues to final price calculation.",
+      "implementationNote": "Uses the earlier s6 inactivity timer plus repeated-change/back/cancel signals."
+    },
+    {
+      "priority": 80,
       "id": "final_price_shock",
       "name": "Explain final price increase",
       "stepId": "s7_final_price",
@@ -375,7 +397,7 @@
       "implementationNote": "The ordered fallback sequence moves from transparency to reassurance to save-progress retention."
     },
     {
-      "priority": 80,
+      "priority": 90,
       "id": "confirm_cancel_intent",
       "name": "Reassure at final confirmation",
       "stepId": "s8_confirm",

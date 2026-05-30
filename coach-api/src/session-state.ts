@@ -5,6 +5,7 @@ import type { V2EventRecord } from "./repository.js";
 
 const RECENT_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 const MAX_RECENT_EVENTS = 30;
+const OOS_TARIFFS = new Set(["opt_plus", "opt. plus", "optplus", "premium"]);
 
 export interface ReconstructedSessionState {
   sessionId: string;
@@ -186,7 +187,16 @@ export function deriveSignalKinds(state: ReconstructedSessionState): string[] {
   if (state.hasRepeatedChangeSignal) signals.push("repeated_change");
   if (state.hasCancelHoverSignal) signals.push("cancel_hover", "inactivity");
   if (state.hasPriceHoverSignal) signals.push("price_hover");
-  if (state.hasOosTariffClickSignal) signals.push("tariff_click_oos");
+  if (
+    state.hasOosTariffClickSignal ||
+    (state.selectedTariff && OOS_TARIFFS.has(normalize(state.selectedTariff)))
+  ) {
+    signals.push("tariff_click_oos");
+  }
   if (state.hasOosPathSignal) signals.push("path_oos");
   return signals;
+}
+
+function normalize(value: string): string {
+  return value.toLowerCase().replace(/[\s._-]+/g, "_");
 }

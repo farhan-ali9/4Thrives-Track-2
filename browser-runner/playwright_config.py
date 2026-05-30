@@ -28,15 +28,39 @@ class RunnerSafetyConfig:
     page_failure_limit: int = 2
     allow_purchase_submit: bool = False
     screenshots: bool = True
+    coach_settle_ms: int = 750
+    coach_overlay_timeout_ms: int = 2_500
+    post_action_settle_ms: int = 600
+    coach_read_ms: int = 450
 
     @classmethod
     def for_mode(cls, mode: str) -> "RunnerSafetyConfig":
         if mode == "bulk":
-            return cls(mode="bulk", max_sessions=600, concurrency=3, min_think_ms=450, max_think_ms=2200, screenshots=False)
+            return cls(
+                mode="bulk",
+                max_sessions=600,
+                concurrency=3,
+                min_think_ms=450,
+                max_think_ms=2200,
+                screenshots=False,
+                coach_settle_ms=400,
+                coach_overlay_timeout_ms=1_200,
+                post_action_settle_ms=300,
+                coach_read_ms=250,
+            )
         if mode == "validation":
             return cls(max_sessions=12)
         if mode == "mock":
-            return cls(mode="mock", max_sessions=3, concurrency=1, screenshots=False)
+            return cls(
+                mode="mock",
+                max_sessions=3,
+                concurrency=1,
+                screenshots=False,
+                coach_settle_ms=0,
+                coach_overlay_timeout_ms=0,
+                post_action_settle_ms=0,
+                coach_read_ms=0,
+            )
         raise ValueError(f"Unsupported run mode: {mode}")
 
 

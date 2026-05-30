@@ -86,7 +86,10 @@ export async function registerV2Routes(
       // Apply cooldown and budget before running policy engine
       if (canRunInference(state)) {
         const policy = await getActivePolicy();
-        actions = runPolicyEngine(state, allEvents, policy.policy);
+        actions = filterActionsByGuardrail(
+          runPolicyEngine(state, allEvents, policy.policy),
+          guardrail.allowedActions,
+        );
       }
     }
 
@@ -143,7 +146,10 @@ export async function registerV2Routes(
       actions = [ADVISOR_HANDOFF_ACTION];
     } else if (canRunInference(state)) {
       const policy = await getActivePolicy();
-      actions = runPolicyEngine(state, allEvents, policy.policy);
+      actions = filterActionsByGuardrail(
+        runPolicyEngine(state, allEvents, policy.policy),
+        guardrail.allowedActions,
+      );
     }
 
     const chosenAction = actions[0] ?? null;
@@ -336,6 +342,15 @@ function canRunInference(
     return false;
   }
   return true;
+}
+
+function filterActionsByGuardrail(
+  actions: CoachAction[],
+  allowedActions: string[],
+): CoachAction[] {
+  return actions.filter(
+    (action) => allowedActions.includes(action.kind) || allowedActions.includes(action.id),
+  );
 }
 
 function runPolicyEngine(

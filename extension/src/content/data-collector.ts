@@ -17,6 +17,7 @@ export interface InteractionEvent {
 export class DataCollector {
   private lastScrollY = window.scrollY;
   private inactivityTimer: number | null = null;
+  private lastActivityAt = Date.now();
 
   constructor(
     private readonly getCurrentStep: () => ResolvedStep | null,
@@ -165,18 +166,45 @@ export class DataCollector {
     if (this.inactivityTimer !== null) {
       window.clearTimeout(this.inactivityTimer);
     }
+    this.lastActivityAt = Date.now();
 
+    this.scheduleInactivityTimer(getShortestInactivityThresholdMs());
+  }
+
+  private scheduleInactivityTimer(delayMs: number): void {
     this.inactivityTimer = window.setTimeout(() => {
+      const thresholdMs = getInactivityThresholdMs(this.getCurrentStep()?.pageStepId ?? null);
+      const idleMs = Date.now() - this.lastActivityAt;
+      if (idleMs < thresholdMs) {
+        this.scheduleInactivityTimer(thresholdMs - idleMs);
+        return;
+      }
+
       this.onInteraction({
         derivedContext: this.buildDerivedContext(),
         elementKey: "inactivity_timer",
         type: "inactivity",
         value: {
-          idleMs: 30_000,
+          idleMs,
         },
       });
-    }, 30_000);
+    }, delayMs);
   }
+}
+
+const DEFAULT_INACTIVITY_MS = 30_000;
+const STEP_INACTIVITY_MS: Record<string, number> = {
+  s4_initial_price: 12_000,
+  s6_personal_medical_data: 18_000,
+  s7_final_price: 12_000,
+};
+
+function getInactivityThresholdMs(stepId: string | null): number {
+  return (stepId && STEP_INACTIVITY_MS[stepId]) || DEFAULT_INACTIVITY_MS;
+}
+
+function getShortestInactivityThresholdMs(): number {
+  return Math.min(DEFAULT_INACTIVITY_MS, ...Object.values(STEP_INACTIVITY_MS));
 }
 
 function resolveInteractiveElement(

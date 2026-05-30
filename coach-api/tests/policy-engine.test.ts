@@ -77,6 +77,17 @@ describe("policy engine", () => {
     expect(events.has("price_gap_shock")).toBe(true);
     expect(actions[0]?.id).toBe("price_gap_transparency");
   });
+
+  test("reassures on medical data hesitation", () => {
+    const request = makeRequest({
+      coachStepId: "s6_personal_medical_data",
+      detectedSignals: ["inactivity"],
+      pageStepId: "s6_personal_medical_data",
+    });
+
+    const actions = evaluateCoachRequest(request, seedPolicy);
+    expect(actions[0]?.id).toBe("trust_signal");
+  });
 });
 
 function makeRequest(overrides: Partial<CoachRequest>): CoachRequest {

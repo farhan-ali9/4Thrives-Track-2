@@ -18,13 +18,16 @@ export function evaluateCoachRequest(
   request: CoachRequest,
   policy: CoachPolicyDocument,
 ): CoachAction[] {
-  const canonicalStepId = request.coachStepId ?? request.pageStepId;
+  const canonicalStepId = request.pageStepId ?? request.coachStepId;
+  const candidateStepIds = new Set(
+    [request.pageStepId, request.coachStepId].filter(Boolean) as string[],
+  );
   const events = derivePolicyEvents(request, policy);
   const shownInterventions = getShownInterventions(request.recentEvents);
   const budgetedImpressions = countBudgetedImpressions(request.recentEvents, policy);
 
   for (const rule of sortRules(policy.rules)) {
-    if (!matchesRule(rule, canonicalStepId, events, policy)) {
+    if (!matchesRule(rule, candidateStepIds, events, policy)) {
       continue;
     }
 
@@ -109,11 +112,11 @@ function sortRules(rules: CoachPolicyRule[]): CoachPolicyRule[] {
 
 function matchesRule(
   rule: CoachPolicyRule,
-  canonicalStepId: string | null,
+  candidateStepIds: Set<string>,
   events: Set<CoachPolicyEvent>,
   policy: CoachPolicyDocument,
 ): boolean {
-  if (rule.stepId && rule.stepId !== canonicalStepId) {
+  if (rule.stepId && !candidateStepIds.has(rule.stepId)) {
     return false;
   }
 
