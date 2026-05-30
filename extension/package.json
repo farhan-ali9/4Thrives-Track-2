@@ -11,6 +11,9 @@
     "test:live": "playwright test tests/live-smoke.spec.ts",
     "test:watch": "vitest"
   },
+  "dependencies": {
+    "@uniqa-conversion-coach/shared": "file:../shared"
+  },
   "devDependencies": {
     "@playwright/test": "^1.54.0",
     "@types/chrome": "^0.0.306",

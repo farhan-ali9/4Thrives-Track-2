@@ -101,7 +101,7 @@ export class UniqaStorage {
 
   async getStepState(sessionId: string): Promise<StepRuntimeState> {
     const state = (await this.adapter.get<StepStateMap>(STORAGE_KEYS.stepState)) ?? {};
-    return state[sessionId] ?? { ...DEFAULT_STEP_STATE };
+    return state[sessionId] ?? createDefaultStepState();
   }
 
   async setStepState(sessionId: string, stepState: StepRuntimeState): Promise<void> {
@@ -112,7 +112,7 @@ export class UniqaStorage {
 
   async getCoachState(sessionId: string): Promise<CoachRuntimeState> {
     const state = (await this.adapter.get<CoachStateMap>(STORAGE_KEYS.coachState)) ?? {};
-    return state[sessionId] ?? { ...DEFAULT_COACH_STATE };
+    return state[sessionId] ?? createDefaultCoachState();
   }
 
   async setCoachState(sessionId: string, coachState: CoachRuntimeState): Promise<void> {
@@ -120,4 +120,19 @@ export class UniqaStorage {
     state[sessionId] = coachState;
     await this.adapter.set(STORAGE_KEYS.coachState, state);
   }
+}
+
+function createDefaultStepState(): StepRuntimeState {
+  return {
+    ...DEFAULT_STEP_STATE,
+    fieldChangeCounts: {},
+    lastDerivedContext: {},
+    selectedAddOns: [],
+  };
+}
+
+function createDefaultCoachState(): CoachRuntimeState {
+  return {
+    shownActionTimestamps: {},
+  };
 }

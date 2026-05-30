@@ -1,0 +1,35 @@
+{
+  "name": "@uniqa-conversion-coach/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./dist/index.js"
+    },
+    "./contracts": {
+      "types": "./src/contracts.ts",
+      "import": "./dist/contracts.js"
+    },
+    "./policy": {
+      "types": "./src/policy.ts",
+      "import": "./dist/policy.js"
+    },
+    "./seed-policy": {
+      "types": "./src/seed-policy.ts",
+      "import": "./dist/seed-policy.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && cp src/seed-policy.json dist/seed-policy.json"
+  },
+  "dependencies": {
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}

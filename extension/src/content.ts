@@ -41,14 +41,30 @@ async function bootstrap(): Promise<void> {
   });
 
   async function emit(event: NormalizedEvent): Promise<RuntimeEventResponse> {
-    return (await chrome.runtime.sendMessage({
-      event,
-      type: "uniqa:event",
-    })) as RuntimeEventResponse;
+    try {
+      return (await chrome.runtime.sendMessage({
+        event,
+        type: "uniqa:event",
+      })) as RuntimeEventResponse;
+    } catch (error) {
+      injector.updateStatus({
+        endpoint: "chrome.runtime",
+        lastUpdatedAt: Date.now(),
+        message: error instanceof Error ? error.message : "Unknown extension runtime error",
+        policyVersion: null,
+        state: "error",
+      });
+      throw error;
+    }
   }
 
   async function renderActions(actions: CoachAction[], context: DerivedContext): Promise<void> {
     const displayed = injector.render(actions, observer.getCurrentStep());
+    if (displayed.length) {
+      injector.addLogMessage(
+        `Rendered ${displayed.length} coach action${displayed.length === 1 ? "" : "s"}`,
+      );
+    }
     for (const action of displayed) {
       await emit({
         coachStepId: observer.getCurrentStep()?.coachStepId ?? null,
@@ -76,8 +92,11 @@ async function bootstrap(): Promise<void> {
 
       const runtimeEvent = buildObserverEvent(init.sessionId, event);
       const response = await emit(runtimeEvent);
+      injector.updateStatus(response.apiStatus);
       if (response.actions.length) {
         await renderActions(response.actions, event.derivedContext);
+      } else if (response.apiStatus.state === "connected") {
+        injector.addLogMessage("API reachable, no coach action for this event");
       }
     })();
   });
@@ -88,8 +107,11 @@ async function bootstrap(): Promise<void> {
     (interaction: InteractionEvent) => {
       void (async () => {
         const response = await emit(buildInteractionEvent(init.sessionId, observer, interaction));
+        injector.updateStatus(response.apiStatus);
         if (response.actions.length) {
           await renderActions(response.actions, interaction.derivedContext);
+        } else if (response.apiStatus.state === "connected") {
+          injector.addLogMessage("API reachable, no coach action for this interaction");
         }
       })();
     },

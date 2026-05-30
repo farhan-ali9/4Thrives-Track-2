@@ -1,106 +1,136 @@
 # UNIQA Conversion Coach
 
-Simulation-based prototype for the UNIQA AI-Guided Conversion Flow track.
+Workspace for the live Chrome extension, the production rule-driven coach API,
+the admin portal, and the original simulator/demo assets.
 
-The project focuses on the measured hackathon scope:
+## Packages
 
-- In scope: private-doctor path, "myself only", Start and Optimal tariffs.
-- Out of scope: hospital/Sonderklasse, "other persons", Opt. Plus, Premium.
-- Conversion metric: online purchase completion of Start or Optimal only.
-- Advisor routing: valid clean exit for out-of-scope paths, not a conversion.
+- `extension/`: Chrome extension that detects funnel state on the live UNIQA calculator and requests hints from the remote coach API.
+- `coach-api/`: Fastify + Prisma backend for coach evaluation, admin auth, policy versioning, and static serving of the admin SPA.
+- `admin-portal/`: React/Vite admin UI for policy settings, intervention copy, rules, and version restore.
+- `shared/`: Shared contracts, policy schema, and seeded default policy.
+- `coach_sim/`: Simulation backend used for the hackathon demo and synthetic evaluation.
+- `streamlit_app/`: Streamlit demo UI for the simulator.
 
-## What Is Included
-
-- `coach_sim/`: reproducible state-machine simulator, persona bots, detection
-  rules, coach decision policy, metrics, batch runner, and scripted demo.
-- `streamlit_app/`: interactive dashboard for side-by-side journeys, batch
-  results, persona profiles, scope, and case-material review.
-- `case_materials/`: hackathon reference files used to ground the prototype.
-- `extension/`: Chrome extension prototype for the live UNIQA calculator with
-  step detection, sanitized telemetry, `chrome.storage.local` persistence,
-  remote coach API support, and injected coach UI.
-- `mock-coach-api/`: local TypeScript stub server for the extension's coach API
-  contract.
-
-## Run The Backend Simulation
-
-```powershell
-python -m coach_sim.run_sim --runs 500 --out coach_sim/results
-python -m coach_sim.demo
-```
-
-The batch runner writes:
-
-- `coach_sim/results/baseline.csv`
-- `coach_sim/results/coach.csv`
-- `coach_sim/results/report.md`
-
-## Run The UI
-
-```powershell
-pip install -r streamlit_app/requirements.txt
-streamlit run streamlit_app/app.py
-```
-
-Open the Streamlit URL, usually:
-
-```text
-http://localhost:8501
-```
-
-The UI works without an LLM key using the local rule-based persona simulator.
-To enable LLM-backed personas, set `FEATHERLESS_API_KEY` in `.env`.
-
-## Run The Extension
+## Install
 
 ```bash
-cd extension
 npm install
-npm run build
+```
+
+Python/Streamlit tooling remains separate:
+
+```bash
+python -m pip install -r streamlit_app/requirements.txt
+```
+
+## Local Development
+
+Set environment variables from `.env.example`. For the coach API and admin
+portal, you need a Postgres database.
+
+Start the local Postgres database:
+
+```bash
+npm run db:up
+npm run db:migrate
+```
+
+Useful database commands:
+
+```bash
+npm run db:logs
+npm run db:down
+npm run db:reset
+```
+
+Start the backend:
+
+```bash
+npm run dev:coach-api
+```
+
+Run the admin portal in standalone Vite mode:
+
+```bash
+npm run dev:admin
+```
+
+The Vite dev server proxies `/api/*` to `http://127.0.0.1:8787`.
+
+Build the extension:
+
+```bash
+npm run build:extension
 ```
 
 Load `extension/dist` as an unpacked Chrome extension.
 
-To run the local coach stub:
+The extension manifest is generated at build time and always includes:
+
+- `https://www.uniqa.at/*`
+- `http://127.0.0.1:8787/*`
+- the configured `VITE_COACH_API_ORIGIN`
+- any comma-separated `VITE_COACH_API_EXTRA_ORIGINS`
+
+## Backend/API
+
+Public routes:
+
+- `POST /api/v1/coach/evaluate`
+- `POST /api/v1/admin/login`
+- `POST /api/v1/admin/logout`
+- `GET /api/v1/admin/me`
+- `GET /api/v1/admin/policy`
+- `PUT /api/v1/admin/policy`
+- `GET /api/v1/admin/policies`
+- `POST /api/v1/admin/policies/:id/restore`
+- `GET /healthz`
+
+Important behavior:
+
+- The extension no longer falls back to a local mock engine.
+- Coach failures return `source: "remote_error"` with an empty `actions` array.
+- Policy versions are append-only snapshots stored in Postgres.
+- The bootstrap admin account is created or updated from environment variables
+  on startup.
+
+## Build And Test
 
 ```bash
-cd mock-coach-api
-npm install
-npm start
+npm run build
+npm test
 ```
 
-Useful extension commands:
+`npm test` rebuilds the shared workspace first so the extension and backend
+tests always execute against the current shared contracts/schema.
+
+Live extension smoke:
 
 ```bash
 cd extension
-npm test
 npm run test:live
-npm run demo
 ```
 
-`npm run demo` launches Chromium with the built extension and saves manual demo
-screenshots under `extension/demo-artifacts/`.
+## DigitalOcean Deployment
 
-## Requirement Fit
+Files added for deployment:
 
-This version is built for the recommended hackathon path:
+- [Dockerfile](/Users/davidklingbeil2/Documents/Hackathon/Uniqa_hackathon/4Thrives-Track-2/Dockerfile)
+- [.do/app.yaml](/Users/davidklingbeil2/Documents/Hackathon/Uniqa_hackathon/4Thrives-Track-2/.do/app.yaml)
+- [coach-api/prisma/migrations/20260530111500_init/migration.sql](/Users/davidklingbeil2/Documents/Hackathon/Uniqa_hackathon/4Thrives-Track-2/coach-api/prisma/migrations/20260530111500_init/migration.sql)
 
-- Option 1: state-machine simulation with log output.
-- Option 2: Streamlit dashboard on top of the simulation backend.
-- Three A/B policies: `minimal`, `balanced`, `aggressive`.
-- Weighted evaluation using the brief's estimated funnel mix: Franz 50%,
-  Judith 30%, Peter 20%.
-- Intervention quality metrics: accepted suggestions as trigger precision,
-  ignored suggestions as annoyance rate.
-- Traceable logic: the Coach is deterministic Python; LLM-backed personas are
-  optional and do not replace the detection/decision layer.
+The App Platform template expects:
 
-## Current Verified Result
+- a Docker build from the repo root
+- one web service serving both the API and built admin SPA
+- one managed Postgres database exposed to the service as `DATABASE_URL`
+- runtime secrets for `SESSION_SECRET` and bootstrap admin credentials
 
-Latest local run writes the full report to `coach_sim/results/report.md`.
-The report includes weighted headline metrics, per-persona conversion,
-critical-step drop-off reduction, requirement coverage, and a qualitative
-before/after demo pointer.
+Update `.do/app.yaml` with the real GitHub repo before deploying.
 
-These results are synthetic and reproducible from seeded persona simulations;
-present them as prototype validation, not a production forecast.
+## Known Limitation
+
+The verified live page map still covers steps 1-6. Steps `s7_final_price` and
+`s8_confirm` remain disabled until the live UNIQA DOM for those screens is
+re-verified and stable enough to support selectors without brittle assumptions.

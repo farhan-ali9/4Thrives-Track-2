@@ -1,4 +1,9 @@
-import type { CoachAction, CoachPlacement, ResolvedStep } from "@/shared/contracts";
+import type {
+  CoachAction,
+  CoachApiStatus,
+  CoachPlacement,
+  ResolvedStep,
+} from "@/shared/contracts";
 import { queryFirst } from "@/shared/page-map";
 
 const ROOT_ID = "uniqa-conversion-coach-root";
@@ -14,6 +19,131 @@ const STYLES = `
     inset: 0;
     pointer-events: none;
     z-index: 2147483646;
+  }
+
+  .status-wrap {
+    bottom: 24px;
+    display: grid;
+    gap: 10px;
+    left: 24px;
+    max-width: 360px;
+    pointer-events: auto;
+    position: fixed;
+  }
+
+  .status-pill {
+    align-items: center;
+    appearance: none;
+    backdrop-filter: blur(14px);
+    background: rgba(7, 22, 58, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    box-shadow: 0 12px 32px rgba(7, 22, 58, 0.2);
+    color: #ffffff;
+    cursor: pointer;
+    display: inline-flex;
+    gap: 10px;
+    justify-self: start;
+    padding: 10px 14px;
+  }
+
+  .status-pill[data-state="connected"] {
+    background: rgba(19, 91, 58, 0.94);
+  }
+
+  .status-pill[data-state="error"] {
+    background: rgba(134, 28, 45, 0.95);
+  }
+
+  .status-dot {
+    border-radius: 999px;
+    display: inline-block;
+    flex: 0 0 auto;
+    height: 9px;
+    width: 9px;
+  }
+
+  .status-pill[data-state="starting"] .status-dot {
+    background: #ffd24c;
+  }
+
+  .status-pill[data-state="connected"] .status-dot {
+    background: #91f2bd;
+  }
+
+  .status-pill[data-state="error"] .status-dot {
+    background: #ff9aad;
+  }
+
+  .status-pill-text {
+    display: grid;
+    gap: 2px;
+    text-align: left;
+  }
+
+  .status-pill-title {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+
+  .status-pill-message {
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 11px;
+    line-height: 1.25;
+  }
+
+  .status-panel {
+    backdrop-filter: blur(16px);
+    background: rgba(7, 22, 58, 0.94);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 18px;
+    box-shadow: 0 18px 50px rgba(7, 22, 58, 0.24);
+    color: #ffffff;
+    padding: 14px;
+  }
+
+  .status-panel[hidden] {
+    display: none;
+  }
+
+  .status-panel-title {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .status-meta,
+  .status-log {
+    color: rgba(255, 255, 255, 0.84);
+    display: grid;
+    font-size: 12px;
+    gap: 6px;
+    line-height: 1.35;
+  }
+
+  .status-section-label {
+    color: rgba(255, 255, 255, 0.64);
+    display: block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    margin-bottom: 5px;
+    margin-top: 12px;
+    text-transform: uppercase;
+  }
+
+  .status-log-entry {
+    align-items: start;
+    display: grid;
+    gap: 2px;
+    grid-template-columns: 56px 1fr;
+  }
+
+  .status-log-time {
+    color: rgba(255, 255, 255, 0.54);
+    font-variant-numeric: tabular-nums;
   }
 
   .card {
@@ -95,13 +225,27 @@ export interface CoachInteraction {
   type: "coach_cta" | "coach_dismiss";
 }
 
+interface VisibleLogEntry {
+  message: string;
+  timestamp: number;
+}
+
 export class DomInjector {
   private readonly host: HTMLDivElement;
   private readonly shadowRootRef: ShadowRoot;
   private readonly layer: HTMLDivElement;
+  private readonly statusWrap: HTMLDivElement;
+  private readonly statusPill: HTMLButtonElement;
+  private readonly statusMessage: HTMLSpanElement;
+  private readonly statusPanel: HTMLDivElement;
+  private readonly statusMeta: HTMLDivElement;
+  private readonly statusLog: HTMLDivElement;
   private currentStep: ResolvedStep | null = null;
   private activeActions = new Map<string, CoachAction>();
   private impressed = new Set<string>();
+  private expanded = false;
+  private lastStatusKey: string | null = null;
+  private statusLogs: VisibleLogEntry[] = [];
 
   constructor(private readonly onInteraction: (interaction: CoachInteraction) => void) {
     this.host = document.createElement("div");
@@ -111,21 +255,69 @@ export class DomInjector {
     style.textContent = STYLES;
     this.layer = document.createElement("div");
     this.layer.className = "layer";
+
+    this.statusWrap = document.createElement("div");
+    this.statusWrap.className = "status-wrap";
+    this.statusPill = document.createElement("button");
+    this.statusPill.className = "status-pill";
+    this.statusPill.type = "button";
+    this.statusPill.addEventListener("click", () => {
+      this.expanded = !this.expanded;
+      this.statusPanel.hidden = !this.expanded;
+    });
+
+    const statusDot = document.createElement("span");
+    statusDot.className = "status-dot";
+    const statusText = document.createElement("span");
+    statusText.className = "status-pill-text";
+    const statusTitle = document.createElement("span");
+    statusTitle.className = "status-pill-title";
+    statusTitle.textContent = "Coach API";
+    this.statusMessage = document.createElement("span");
+    this.statusMessage.className = "status-pill-message";
+    statusText.append(statusTitle, this.statusMessage);
+    this.statusPill.append(statusDot, statusText);
+
+    this.statusPanel = document.createElement("div");
+    this.statusPanel.className = "status-panel";
+    this.statusPanel.hidden = true;
+    const panelTitle = document.createElement("strong");
+    panelTitle.className = "status-panel-title";
+    panelTitle.textContent = "Extension status";
+    this.statusMeta = document.createElement("div");
+    this.statusMeta.className = "status-meta";
+    const logLabel = document.createElement("span");
+    logLabel.className = "status-section-label";
+    logLabel.textContent = "Recent events";
+    this.statusLog = document.createElement("div");
+    this.statusLog.className = "status-log";
+    this.statusPanel.append(panelTitle, this.statusMeta, logLabel, this.statusLog);
+
+    this.statusWrap.append(this.statusPill, this.statusPanel);
+    this.layer.append(this.statusWrap);
     this.shadowRootRef.append(style, this.layer);
     document.body.appendChild(this.host);
 
     window.addEventListener("scroll", this.reposition, { passive: true });
     window.addEventListener("resize", this.reposition);
+
+    this.updateStatus({
+      endpoint: "waiting",
+      lastUpdatedAt: Date.now(),
+      message: "Initializing extension",
+      policyVersion: null,
+      state: "starting",
+    });
   }
 
   clear(): void {
     this.activeActions.clear();
-    this.layer.replaceChildren();
+    this.layer.replaceChildren(this.statusWrap);
   }
 
   render(actions: CoachAction[], step: ResolvedStep | null): CoachAction[] {
     this.currentStep = step;
-    this.layer.replaceChildren();
+    this.layer.replaceChildren(this.statusWrap);
     this.activeActions.clear();
 
     const displayed: CoachAction[] = [];
@@ -144,6 +336,30 @@ export class DomInjector {
       this.impressed.add(action.id);
       return true;
     });
+  }
+
+  updateStatus(status: CoachApiStatus): void {
+    this.statusPill.dataset.state = status.state;
+    this.statusMessage.textContent = status.message;
+    const formattedTime = formatTime(status.lastUpdatedAt);
+    this.statusMeta.replaceChildren(
+      buildMetaLine(`State: ${status.state}`),
+      buildMetaLine(`Endpoint: ${status.endpoint}`),
+      buildMetaLine(
+        `Policy: ${status.policyVersion !== null ? `v${status.policyVersion}` : "not available"}`,
+      ),
+      buildMetaLine(`Updated: ${formattedTime}`),
+    );
+
+    const dedupeKey = `${status.state}:${status.policyVersion ?? "none"}:${status.message}`;
+    if (this.lastStatusKey !== dedupeKey) {
+      this.lastStatusKey = dedupeKey;
+      this.pushLogEntry(status.lastUpdatedAt, status.message);
+    }
+  }
+
+  addLogMessage(message: string, timestamp = Date.now()): void {
+    this.pushLogEntry(timestamp, message);
   }
 
   private renderCard(action: CoachAction): HTMLElement {
@@ -197,7 +413,7 @@ export class DomInjector {
 
   private readonly reposition = (): void => {
     for (const node of Array.from(this.layer.children)) {
-      if (!(node instanceof HTMLElement)) {
+      if (!(node instanceof HTMLElement) || node === this.statusWrap) {
         continue;
       }
 
@@ -225,6 +441,23 @@ export class DomInjector {
           : `${Math.max(16, rect.top + 8)}px`;
     }
   };
+
+  private pushLogEntry(timestamp: number, message: string): void {
+    this.statusLogs = [{ message, timestamp }, ...this.statusLogs].slice(0, 8);
+    this.statusLog.replaceChildren(
+      ...this.statusLogs.map((entry) => {
+        const row = document.createElement("div");
+        row.className = "status-log-entry";
+        const time = document.createElement("span");
+        time.className = "status-log-time";
+        time.textContent = formatTime(entry.timestamp);
+        const text = document.createElement("span");
+        text.textContent = entry.message;
+        row.append(time, text);
+        return row;
+      }),
+    );
+  }
 }
 
 function resolveAnchor(step: ResolvedStep | null, placement: CoachPlacement): Element | null {
@@ -237,4 +470,22 @@ function resolveAnchor(step: ResolvedStep | null, placement: CoachPlacement): El
   }
 
   return queryFirst(document, step.config.selectors.stepAnchor);
+}
+
+function buildMetaLine(text: string): HTMLElement {
+  const line = document.createElement("span");
+  line.textContent = text;
+  return line;
+}
+
+function formatTime(timestamp: number): string {
+  if (!timestamp) {
+    return "--:--:--";
+  }
+
+  return new Date(timestamp).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }
