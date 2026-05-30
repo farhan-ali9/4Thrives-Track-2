@@ -6,6 +6,7 @@ from pathlib import Path
 
 LIVE_UNIQA_URL = "https://www.uniqa.at/rechner/krankenversicherung/"
 DEFAULT_FEATHERLESS_CHAT_URL = "https://api.featherless.ai/v1/chat/completions"
+FEATHERLESS_CHAT_COMPLETIONS_URL = DEFAULT_FEATHERLESS_CHAT_URL
 DEFAULT_FEATHERLESS_MODEL = "Qwen/Qwen2.5-7B-Instruct"
 
 

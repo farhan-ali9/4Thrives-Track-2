@@ -6,19 +6,38 @@ PIPELINE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 load_local_pipeline_env() {
   local env_file="${LOCAL_PIPELINE_ENV_FILE:-$PIPELINE_ROOT/.env}"
   if [[ -f "$env_file" ]]; then
-    set -a
-    # shellcheck disable=SC1090
-    source "$env_file"
-    set +a
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      [[ "$line" =~ ^[[:space:]]*$ ]] && continue
+      [[ "$line" =~ ^[[:space:]]*# ]] && continue
+      [[ "$line" != *=* ]] && continue
+      local key="${line%%=*}"
+      local value="${line#*=}"
+      key="${key//[[:space:]]/}"
+      [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue
+      value="${value#"${value%%[![:space:]]*}"}"
+      value="${value%"${value##*[![:space:]]}"}"
+      if [[ "${#value}" -ge 2 ]]; then
+        local first="${value:0:1}"
+        local last="${value: -1}"
+        if [[ "$first" == "$last" && ( "$first" == "\"" || "$first" == "'" ) ]]; then
+          value="${value:1:${#value}-2}"
+        fi
+      fi
+      export "$key=$value"
+    done < "$env_file"
   fi
 
   export EXTENSION_DIST="${EXTENSION_DIST:-$PIPELINE_ROOT/extension/dist}"
-  export COACH_API_URL="${COACH_API_URL:-http://127.0.0.1:8787}"
+  export COACH_API_URL="${COACH_API_URL:-${VITE_COACH_API_ORIGIN:-http://127.0.0.1:8787}}"
   export RUNNER_OUTPUT_DIR="${RUNNER_OUTPUT_DIR:-$PIPELINE_ROOT/artifacts/browser-runs}"
   export LLM_API_URL="${LLM_API_URL:-${LLM_GATEWAY_URL:-https://api.featherless.ai/v1/chat/completions}}"
   export LLM_MODEL="${LLM_MODEL:-${LLM_DEFAULT_MODEL:-${VITE_FEATHERLESS_MODEL:-Qwen/Qwen2.5-7B-Instruct}}}"
   export LLM_HTTP_REFERER="${LLM_HTTP_REFERER:-http://localhost}"
   export LLM_APP_TITLE="${LLM_APP_TITLE:-UNIQA Conversion Coach Runner}"
+  export PYTHON_BIN="${PYTHON_BIN:-$PIPELINE_ROOT/.venv/bin/python}"
+  if [[ ! -x "$PYTHON_BIN" ]]; then
+    export PYTHON_BIN="python3"
+  fi
 }
 
 require_featherless_key() {
