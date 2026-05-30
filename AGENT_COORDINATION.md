@@ -96,7 +96,7 @@ Short plan:
 * stabilize UNIQA step and out-of-scope detection
 * fill event/derived-context/rendering gaps and extend smoke coverage
 
-Last update: 2026-05-30 15:45:43 CEST
+Last update: 2026-05-30 15:47:32 CEST
 
 Notes:
 * Completed this pass:
@@ -161,11 +161,64 @@ Notes:
   * live-stored event types now reliably include `step_enter`, `step_resolved`, `coach_impression`, `coach_cta`, and `coach_dismiss`
   * derived context emitted by the extension now includes `sessionDurationMs`, a corrected incremental `priceDelta`, Step 7 field-completion data, and Step 8 consultation-choice field-completion data
   * if backend terminal-outcome logic keys off steps, the current live `s8_confirm` detection should be interpreted as advisor handoff on this journey
+  * example v2 event payload emitted by the extension:
+    ```json
+    {
+      "schema_version": "v1",
+      "event_id": "evt_step_enter",
+      "session_id": "session_1",
+      "ts": 1710000000000,
+      "source": "extension",
+      "step_id": "s4_initial_price",
+      "event_type": "click",
+      "element_key": "selectionbutton_2",
+      "raw_value": {
+        "intent": "out_of_scope_tariff",
+        "option": "opt_plus"
+      },
+      "derived_signals": {
+        "tariff_click_oos": true
+      },
+      "derived_context": {
+        "selectedTariff": "optimal",
+        "visiblePrice": 73.02,
+        "priceDelta": 31.72,
+        "sessionDurationMs": 1250
+      },
+      "runner_metadata": {},
+      "privacy_level": "anonymous"
+    }
+    ```
+  * expected safe response shape the extension handles:
+    ```json
+    {
+      "actions": []
+    }
+    ```
 * Notes for Andrii:
   * there is now a Playwright live smoke path that launches the built extension bundle in Chromium with `--load-extension`
   * stable live journey coverage now reaches the current terminal `Berateranfrage` screen
   * the live smoke contains the exact synthetic Step 6 inputs needed to advance into Step 7 and then answer the post-Step-7 medical questions with `nein`
   * if runner metrics distinguish online conversion from advisor handoff, this current live branch path should be counted as advisor handoff rather than online confirm
+  * extension build path for runner loading: `extension/dist`
+  * Chromium launch flags used in smoke coverage:
+    * `--disable-extensions-except=/absolute/path/to/extension/dist`
+    * `--load-extension=/absolute/path/to/extension/dist`
+  * stable emitted step IDs currently observed live:
+    * `s1_coverage_scope`
+    * `s2_for_whom`
+    * `s3_quote_basics`
+    * `s4_initial_price`
+    * `s5_add_ons`
+    * `s6_personal_medical_data`
+    * `s7_final_price`
+    * `s8_confirm`
+  * example session-log sequence from the extension-loaded smoke:
+    * `step_enter`
+    * `step_resolved`
+    * `coach_impression`
+    * `coach_cta`
+    * `coach_dismiss`
 * Branch check:
   * `origin/Farhan-Branch` now contains the v2 telemetry API and session replay work David should target
   * `origin/andrii-agent` now exists and shows active runner/trace orchestration progress
