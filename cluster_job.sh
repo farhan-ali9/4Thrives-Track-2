@@ -15,9 +15,9 @@
 #SBATCH --account=euhpc_d30_031
 #SBATCH --partition=boost_usr_prod
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=32
+#SBATCH --ntasks-per-node=8
 #SBATCH --cpus-per-task=1
-#SBATCH --time=02:00:00
+#SBATCH --time=00:30:00
 #SBATCH --output=logs/cluster_%j.out
 #SBATCH --error=logs/cluster_%j.err
 #SBATCH --mail-type=BEGIN,END,FAIL
@@ -33,13 +33,13 @@ mkdir -p logs coach_sim/results/cluster
 echo "=============================="
 echo "Job $SLURM_JOB_ID | User: a08trc04"
 echo "Node: $(hostname) | Cores: $SLURM_NTASKS"
-echo "Runs per persona: 50000 | Workers: 32"
+echo "Runs per persona: 10000 | Workers: 8"
 echo "=============================="
 
 # Run simulation
 python -m coach_sim.run_cluster \
-    --runs 50000 \
-    --workers 32 \
+    --runs 10000 \
+    --workers 8 \
     --out coach_sim/results/cluster \
     --seed 42
 
