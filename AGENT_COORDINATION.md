@@ -212,7 +212,7 @@ Do not edit:
 * backend/*
 * database migrations unless agreed with Farhan
 
-Status: Farhan v2 session export compatibility implemented locally; coordination update ready to share
+Status: Runner-side v2 backend telemetry client implemented locally; coordination update ready to share
 
 Files currently being edited:
 
@@ -221,6 +221,7 @@ Files currently being edited:
 Completed files:
 
 * browser-runner/README.md
+* browser-runner/backend_client.py
 * browser-runner/errors.py
 * browser-runner/persona_policy.py
 * browser-runner/playwright_config.py
@@ -229,6 +230,7 @@ Completed files:
 * browser-runner/tests/test_persona_policy.py
 * browser-runner/tests/test_mock_runner.py
 * browser-runner/tests/test_run_batch.py
+* browser-runner/tests/test_backend_client.py
 * personas/franz.json
 * personas/judith.json
 * personas/peter.json
@@ -269,10 +271,10 @@ Completed files:
 * docs/evaluation/README.md
 * docs/training/README.md
 
-Last update: 2026-05-30 15:44 CEST
+Last update: 2026-05-30 15:48 CEST
 
 Notes:
-Andrii implemented the first local scaffold for persona policies, safe mock/live runner entry points, replay, metrics, trace-to-dataset, simple post-trace ranker training, Leonardo batch docs/scripts, and focused unit tests. Follow-up expansion added classified runner failures, batch `failure_log` and `circuit_breaker` summaries, explicit backend/selector failure tests, and metrics for advisor-routing correctness, conversion by intention, persona-step drop-off, intervention acceptance/dismiss/annoyance, precision/recall, selector drift, backend timeout, and inference latency. Trace validation slice added local/backend-export trace validation, validation CLI, markdown report generation, dataset quality checks, and tests for those gates. Experiment slice added `evaluation/run_experiment.py` plus `scripts/run_evaluation_experiment.sh` to create baseline/rule_based/trainable experiment folders, per-mode manifests, and a baseline-vs-rule report. Leonardo slice hardened execution with `leonardo/env.example`, `leonardo/apptainer.def`, README Apptainer/Singularity notes, and root `scripts/slurm_*.sh` wrappers for browser batches, replay/dataset checks, evaluation experiments, and ranker training. Latest slice aligned replay/dataset tooling with Farhan's new v2 backend export: `replay/trace_store.py` now normalizes `{ session_id, events, decisions, exposures, outcome }`, `replay/fetch_session.py` fetches `GET /api/v2/sessions/:id`, replay timelines show decisions/exposures, and `training/build_dataset.py` creates examples from backend decision/exposure rows. Verified with `python3 -m unittest discover -s replay/tests -p 'test_*.py'`, `python3 -m unittest discover -s training/tests -p 'test_*.py'`, `python3 -m unittest discover -s evaluation/tests -p 'test_*.py'`, `python3 -m unittest discover -s browser-runner/tests -p 'test_*.py'`, and a local Farhan-shaped v2 trace smoke through validation, dataset build, quality checks, and replay. David: origin/david-branch moved but remains coordination-only. Farhan: origin/Farhan-Branch now contains v2 telemetry/session replay implementation; Andrii tooling was updated to consume its session export without editing backend-owned files.
+Andrii implemented the first local scaffold for persona policies, safe mock/live runner entry points, replay, metrics, trace-to-dataset, simple post-trace ranker training, Leonardo batch docs/scripts, and focused unit tests. Follow-up expansion added classified runner failures, batch `failure_log` and `circuit_breaker` summaries, explicit backend/selector failure tests, and metrics for advisor-routing correctness, conversion by intention, persona-step drop-off, intervention acceptance/dismiss/annoyance, precision/recall, selector drift, backend timeout, and inference latency. Trace validation slice added local/backend-export trace validation, validation CLI, markdown report generation, dataset quality checks, and tests for those gates. Experiment slice added `evaluation/run_experiment.py` plus `scripts/run_evaluation_experiment.sh` to create baseline/rule_based/trainable experiment folders, per-mode manifests, and a baseline-vs-rule report. Leonardo slice hardened execution with `leonardo/env.example`, `leonardo/apptainer.def`, README Apptainer/Singularity notes, and root `scripts/slurm_*.sh` wrappers for browser batches, replay/dataset checks, evaluation experiments, and ranker training. V2 compatibility slice aligned replay/dataset tooling with Farhan's backend export. Latest slice added `browser-runner/backend_client.py` and tests for runner-side calls to `POST /api/v2/events`, `/api/v2/inference`, `/api/v2/exposures`, `/api/v2/outcomes`, and `GET /api/v2/sessions/:id`; payload normalizers default anonymous event fields and reject invalid terminal outcomes before network calls. Verified with `python3 -m unittest discover -s browser-runner/tests -p 'test_*.py'`, `python3 -m unittest discover -s replay/tests -p 'test_*.py'`, `python3 -m unittest discover -s training/tests -p 'test_*.py'`, `python3 -m unittest discover -s evaluation/tests -p 'test_*.py'`, and an injected-transport backend client smoke. David: origin/david-branch remains coordination-only. Farhan: origin/Farhan-Branch contains the v2 telemetry/session replay implementation that this client targets.
 
 ---
 
