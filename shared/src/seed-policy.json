@@ -165,6 +165,7 @@
       "intent": "Return no UI card.",
       "title": "",
       "body": "",
+      "cta": null,
       "ctaLabel": null,
       "rationale": "Used when no rule matches or budget is exhausted."
     },
@@ -174,6 +175,13 @@
       "intent": "Reduce cognitive load when the visitor hesitates on optional choices.",
       "title": "Tarife einfach einordnen",
       "body": "Start und Optimal sind die online abschliessbaren Tarife. Optimal deckt mehr Leistungen ab, ohne in den Beratungspfad zu wechseln.",
+      "cta": {
+        "label": "Weiter",
+        "type": "continue",
+        "target": "primary_cta",
+        "prompt": "Help me understand whether I should continue with or without optional add-ons.",
+        "telemetryKey": "simplified_explanation_continue"
+      },
       "ctaLabel": "Kurz vergleichen",
       "shownWhen": [
         "User hesitates on add-ons",
@@ -187,6 +195,13 @@
       "intent": "Explain why sensitive information is requested before the user abandons.",
       "title": "Warum diese Daten noetig sind",
       "body": "Geburtsdatum und Sozialversicherung werden fuer die vorlaeufige Praemienberechnung genutzt. Es wird noch nichts abgeschlossen.",
+      "cta": {
+        "label": "Zum naechsten Feld",
+        "type": "focus_field",
+        "target": "step_anchor",
+        "prompt": "Explain why this information is needed and what happens next.",
+        "telemetryKey": "trust_signal_focus"
+      },
       "ctaLabel": "Weiter",
       "shownWhen": [
         "User hesitates on personal quote data",
@@ -201,6 +216,13 @@
       "intent": "Make the monthly premium easier to understand by reframing it as daily value.",
       "title": "Preis kurz eingeordnet",
       "body": "Optimal liegt hier bei rund EUR 2,25 pro Tag und bleibt vollstaendig online abschliessbar.",
+      "cta": {
+        "label": "Tarife vergleichen",
+        "type": "focus_field",
+        "target": "step_anchor",
+        "prompt": "Help me compare the online tariffs and understand the current monthly price.",
+        "telemetryKey": "price_reframe_compare"
+      },
       "ctaLabel": "Tarife vergleichen",
       "shownWhen": [
         "User fixates on price",
@@ -215,6 +237,13 @@
       "intent": "Help comparison-oriented users understand whether the premium is reasonable.",
       "title": "Marktvergleich",
       "body": "Mit rund EUR 68 pro Monat liegt Optimal im unteren Drittel vergleichbarer Privatarzt-Tarife in Oesterreich.",
+      "cta": {
+        "label": "Optimal pruefen",
+        "type": "select_tariff",
+        "target": "optimal",
+        "prompt": "Help me compare Optimal with the other online-completable tariff.",
+        "telemetryKey": "market_comparison_select_optimal"
+      },
       "ctaLabel": "Optimal pruefen",
       "shownWhen": [
         "User navigates backward from the price page",
@@ -229,6 +258,13 @@
       "intent": "Explain why final price may differ from the first visible estimate.",
       "title": "Finaler Preis erklaert",
       "body": "Der finale Preis beruecksichtigt Ihr persoenliches Gesundheitsprofil. Sie koennen den Abschluss weiterhin online fortsetzen.",
+      "cta": {
+        "label": "Weiter pruefen",
+        "type": "continue",
+        "target": "primary_cta",
+        "prompt": "Explain why the final price changed and whether I can still continue online.",
+        "telemetryKey": "price_gap_continue"
+      },
       "ctaLabel": "Weiter pruefen",
       "shownWhen": [
         "Final price increase crosses the configured threshold",
@@ -243,6 +279,13 @@
       "intent": "Recover users who click advisor-only tariffs by pointing them back to the online-completable options.",
       "title": "Opt. Plus und Premium brauchen Beratung",
       "body": "Opt. Plus und Premium brauchen Beratung. Fuer einen direkten Online-Abschluss bleiben Start und Optimal die passenden Optionen.",
+      "cta": {
+        "label": "Optimal pruefen",
+        "type": "select_tariff",
+        "target": "optimal",
+        "prompt": "Help me understand why Optimal can be completed online and how it compares.",
+        "telemetryKey": "tariff_route_select_optimal"
+      },
       "ctaLabel": "Optimal pruefen",
       "shownWhen": [
         "User clicks Opt. Plus",
@@ -258,6 +301,13 @@
       "intent": "Cleanly route journeys that cannot be completed online in this prototype scope.",
       "title": "Dieser Pfad braucht Beratung",
       "body": "Krankenhaus oder weitere versicherte Personen brauchen persoenliche Beratung. Dieser Pfad ist ein sauberer Beratungsausstieg.",
+      "cta": {
+        "label": "Beratung anzeigen",
+        "type": "advisor_handoff",
+        "target": "advisor",
+        "prompt": "Explain why this journey should move to personal advice and what I can do next.",
+        "telemetryKey": "advisor_route_handoff"
+      },
       "ctaLabel": "Verstanden",
       "shownWhen": [
         "User selects hospital coverage",
@@ -274,6 +324,13 @@
       "intent": "Offer a lower-pressure continuation path when final-stage hesitation persists.",
       "title": "Fortschritt nicht verlieren",
       "body": "Speichern Sie Ihren Fortschritt und setzen Sie den Abschluss spaeter ohne erneute Eingabe fort.",
+      "cta": {
+        "label": "Fortschritt sichern",
+        "type": "save_progress",
+        "target": "progress",
+        "prompt": "Help me save or understand my progress before I leave.",
+        "telemetryKey": "save_progress_chat"
+      },
       "ctaLabel": "Fortschritt sichern",
       "shownWhen": [
         "Final price transparency and trust signal were already shown",

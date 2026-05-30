@@ -25,12 +25,19 @@ import type {
 // ── Intervention catalog for advisor_handoff action ───────────────────────────
 
 const ADVISOR_HANDOFF_ACTION: CoachAction = {
+  cta: {
+    label: "Beratung anzeigen",
+    prompt: "Explain why this journey should move to personal advice and what I can do next.",
+    target: "advisor",
+    telemetryKey: "advisor_route",
+    type: "advisor_handoff",
+  },
   id: "advisor_route",
   kind: "advisor_handoff",
   placement: "bottom-toast",
   title: "Dieser Pfad braucht Beratung",
   body: "Krankenhaus oder weitere versicherte Personen brauchen persoenliche Beratung. Dieser Pfad ist ein sauberer Beratungsausstieg.",
-  ctaLabel: "Verstanden",
+  ctaLabel: "Beratung anzeigen",
   dismissible: true,
   cooldownMs: 120_000,
 };
@@ -109,7 +116,13 @@ export async function registerV2Routes(
       riskScore,
     });
 
-    return { ok: true, actions };
+    return {
+      ok: true,
+      actions,
+      decision_id: decisionId,
+      risk_score: riskScore,
+      guardrail: guardrail.guardrail,
+    };
   });
 
   // POST /api/v2/inference
@@ -405,25 +418,30 @@ function serializeTrace(trace: import("./repository").SessionTrace) {
   return {
     session_id: trace.sessionId,
     events: trace.events.map((e) => ({
-      event_id: e.eventId,
-      session_id: e.sessionId,
-      ts: e.ts,
-      step_id: e.stepId,
-      event_type: e.eventType,
-      element_key: e.elementKey,
-      derived_signals: e.derivedSignals,
+      created_at: e.createdAt.toISOString(),
       derived_context: e.derivedContext,
+      derived_signals: e.derivedSignals,
+      element_key: e.elementKey,
+      event_id: e.eventId,
+      event_type: e.eventType,
       privacy_level: e.privacyLevel,
+      raw_value: e.rawValue,
+      runner_metadata: e.runnerMetadata,
+      session_id: e.sessionId,
+      step_id: e.stepId,
+      ts: e.ts,
     })),
     decisions: trace.decisions.map((d) => ({
+      candidate_set_version: d.candidateSetVersion,
       decision_id: d.decisionId,
-      session_id: d.sessionId,
-      model_version: d.modelVersion,
       chosen_action_id: d.chosenActionId,
-      risk_score: d.riskScore,
+      created_at: d.createdAt.toISOString(),
       guardrail_decisions: d.guardrailDecisions,
       latency_ms: d.latencyMs,
-      created_at: d.createdAt.toISOString(),
+      model_version: d.modelVersion,
+      ranked_candidates: d.rankedCandidates,
+      risk_score: d.riskScore,
+      session_id: d.sessionId,
     })),
     exposures: trace.exposures.map((ex) => ({
       exposure_id: ex.exposureId,

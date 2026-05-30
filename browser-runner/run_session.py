@@ -25,7 +25,10 @@ from live_page import (
     dismiss_cookie_banner,
     generate_sv,
     install_runner_shim,
+    read_extension_state,
     read_runner_shim,
+    wait_for_coach_render,
+    wait_for_extension_ready,
 )
 from llm_persona import LLMPersonaDriver, PersonaDecision
 from persona_policy import ONLINE_STEPS, classify_outcome, load_personas
@@ -221,7 +224,9 @@ def _coach_overlay_text(page: Any) -> str:
         """
         () => {
           const shadow = document.querySelector("#uniqa-conversion-coach-root")?.shadowRoot;
-          const target = shadow?.querySelector(".cta, .dismiss");
+          const state = window.__UNIQA_COACH_STATE__;
+          if (!state?.cardCount) return "";
+          const target = shadow?.querySelector(".card[data-action-id]");
           if (!target) return "";
           return shadow?.textContent?.trim() || "";
         }
@@ -230,19 +235,12 @@ def _coach_overlay_text(page: Any) -> str:
 
 
 def _wait_for_coach_overlay(page: Any, *, timeout_ms: int, settle_ms: int = 0) -> bool:
-    if timeout_ms <= 0:
-        return False
-    started = time.time()
-    while (time.time() - started) * 1000 < timeout_ms:
-        try:
-            if _coach_overlay_text(page):
-                if settle_ms > 0:
-                    page.wait_for_timeout(settle_ms)
-                return True
-        except Exception:
-            return False
-        page.wait_for_timeout(150)
-    return False
+    return wait_for_coach_render(
+        page,
+        timeout_ms=timeout_ms,
+        settle_ms=settle_ms,
+        require_actionable=False,
+    )
 
 
 def _post_action_settle(page: Any, safety: RunnerSafetyConfig, *, coach_mode: bool) -> None:
@@ -605,6 +603,15 @@ def run_live_session(*, persona_id: str, intention: str, experiment_id: str, see
             except Exception as exc:
                 raise PageLoadFailure(str(exc)) from exc
             dismiss_cookie_banner(page)
+            if config.execution_mode == "coach":
+                ready = wait_for_extension_ready(
+                    page,
+                    timeout_ms=max(5_000, safety.coach_overlay_timeout_ms * 3),
+                    settle_ms=safety.coach_settle_ms,
+                )
+                if not ready:
+                    state = read_extension_state(page)
+                    raise PageLoadFailure(f"Coach extension did not become ready: {state}")
 
             visited_step_count = 0
             terminal_outcome: str | None = None
@@ -652,6 +659,12 @@ def run_live_session(*, persona_id: str, intention: str, experiment_id: str, see
                     coach_mode=config.execution_mode == "coach",
                 )
                 _post_action_settle(page, safety, coach_mode=config.execution_mode == "coach")
+                if config.execution_mode == "coach":
+                    _wait_for_coach_overlay(
+                        page,
+                        timeout_ms=max(0, safety.coach_overlay_timeout_ms // 2),
+                        settle_ms=safety.coach_settle_ms // 2,
+                    )
                 if config.execution_mode == "baseline":
                     _append_baseline_event(
                         baseline_events,

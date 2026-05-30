@@ -11,7 +11,13 @@ sys.path.insert(0, str(ROOT / "replay"))
 from trace_store import load_traces, normalize_trace
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from build_dataset import build_examples
+from build_dataset import DEFAULT_CANDIDATES, build_examples
+
+
+RULE_BASED_INTERVENTIONS_BY_STEP = {
+    "s4_initial_price": "price_transparency",
+    "s7_final_price": "price_transparency",
+}
 
 
 def build_user_policy_examples(trace: dict[str, Any], dataset_phase: str) -> list[dict[str, Any]]:
@@ -50,7 +56,48 @@ def build_coach_ranking_examples(trace: dict[str, Any], dataset_phase: str) -> l
     run_mode = normalized.get("run_mode") or metadata.get("run_mode")
     if run_mode != "coach" and not normalized.get("decisions"):
         return []
-    return build_examples(normalized, dataset_phase)
+    examples = build_examples(normalized, dataset_phase)
+    if examples:
+        return examples
+    return _build_rule_based_bootstrap_examples(normalized, dataset_phase)
+
+
+def _build_rule_based_bootstrap_examples(trace: dict[str, Any], dataset_phase: str) -> list[dict[str, Any]]:
+    metadata = trace.get("metadata", {})
+    if (trace.get("run_mode") or metadata.get("run_mode")) != "coach":
+        return []
+    if metadata.get("model_version_or_policy") != "rule-based":
+        return []
+
+    examples = []
+    prefix = []
+    for decision in trace.get("llm_decisions", []):
+        step_id = decision.get("step_id")
+        chosen = RULE_BASED_INTERVENTIONS_BY_STEP.get(step_id)
+        if chosen:
+            examples.append({
+                "session_id": trace.get("session_id"),
+                "decision_id": decision.get("decision_id"),
+                "trace_prefix": list(prefix),
+                "current_step_id": step_id,
+                "page_map_version": metadata.get("page_map_version"),
+                "extension_version": metadata.get("extension_build_id"),
+                "model_version_or_baseline": metadata.get("model_version_or_policy"),
+                "candidate_set": DEFAULT_CANDIDATES,
+                "guardrail_filtered_candidates": [chosen],
+                "chosen_candidate": chosen,
+                "exposure_result": "not_recorded",
+                "future_outcome_summary": trace.get("terminal_outcome"),
+                "runner_metadata": metadata,
+                "dataset_phase": dataset_phase,
+            })
+        prefix.append({
+            "decision_id": decision.get("decision_id"),
+            "step_id": step_id,
+            "action": decision.get("action"),
+            "step_context": decision.get("step_context", {}),
+        })
+    return examples
 
 
 def build_live_datasets(*, traces_path: Path, user_output: Path, coach_output: Path, user_dataset_phase: str, coach_dataset_phase: str) -> dict[str, Any]:

@@ -60,6 +60,8 @@ async function bootstrap(): Promise<void> {
         type: interaction.type,
         value: {
           actionKind: interaction.action.kind,
+          cta: interaction.cta,
+          ctaResult: interaction.result,
           placement: interaction.action.placement,
         },
       });

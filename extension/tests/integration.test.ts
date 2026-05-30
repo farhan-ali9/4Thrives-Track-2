@@ -64,6 +64,13 @@ describe("event orchestration", () => {
                 ? [
                     {
                       body: "Opt. Plus und Premium brauchen Beratung. Fuer einen direkten Online-Abschluss bleiben Start und Optimal die passenden Optionen.",
+                      cta: {
+                        label: "Optimal pruefen",
+                        prompt: "Help me compare Optimal with advisor-only tariffs.",
+                        target: "optimal",
+                        telemetryKey: "tariff_route_select_optimal",
+                        type: "select_tariff",
+                      },
                       cooldownMs: 90_000,
                       ctaLabel: "Optimal pruefen",
                       dismissible: true,
@@ -101,6 +108,10 @@ describe("event orchestration", () => {
     const shadow = doc.querySelector("#uniqa-conversion-coach-root")?.shadowRoot;
     expect(shadow?.textContent).toContain("Opt. Plus und Premium brauchen Beratung");
     expect(shadow?.textContent).toContain("Connected to coach API");
+    expect(
+      (doc.defaultView as Window & { __UNIQA_COACH_STATE__?: { actionable: boolean } })
+        .__UNIQA_COACH_STATE__?.actionable,
+    ).toBe(true);
   });
 
   test("returns no actions when the remote coach request fails", async () => {

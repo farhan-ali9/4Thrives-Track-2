@@ -1,5 +1,6 @@
 import type {
   CoachAction,
+  CoachCta,
   CoachPlacement,
   CoachRequest,
   NormalizedEvent,
@@ -178,8 +179,9 @@ function materializeAction(
 
   return {
     body: intervention.body,
+    cta: materializeCta(interventionId, intervention, canonicalStepId),
     cooldownMs: intervention.cooldownMs ?? policy.actionDefaults.cooldownMs,
-    ctaLabel: intervention.ctaLabel,
+    ctaLabel: intervention.cta?.label ?? intervention.ctaLabel,
     dismissible: intervention.dismissible ?? policy.actionDefaults.dismissible,
     id: interventionId,
     kind: interventionId,
@@ -189,6 +191,75 @@ function materializeAction(
       policy.actionDefaults.placement,
     title: intervention.title,
   };
+}
+
+function materializeCta(
+  interventionId: string,
+  intervention: CoachPolicyIntervention,
+  canonicalStepId: string | null,
+): CoachCta | null {
+  if (intervention.cta === null || intervention.ctaLabel === null) {
+    return intervention.cta ?? null;
+  }
+
+  if (intervention.cta) {
+    return {
+      label: intervention.cta.label,
+      prompt: intervention.cta.prompt ?? null,
+      target: intervention.cta.target ?? null,
+      telemetryKey: intervention.cta.telemetryKey ?? interventionId,
+      type: intervention.cta.type,
+    };
+  }
+
+  const label = intervention.ctaLabel;
+  if (!label) {
+    return null;
+  }
+
+  const target = defaultCtaTarget(interventionId, canonicalStepId);
+  return {
+    label,
+    prompt: defaultChatPrompt(interventionId),
+    target: target.target,
+    telemetryKey: interventionId,
+    type: target.type,
+  };
+}
+
+function defaultCtaTarget(
+  interventionId: string,
+  canonicalStepId: string | null,
+): Pick<CoachCta, "target" | "type"> {
+  if (interventionId === "tariff_route_explainer") {
+    return { target: "optimal", type: "select_tariff" };
+  }
+  if (interventionId === "advisor_route") {
+    return { target: "advisor", type: "advisor_handoff" };
+  }
+  if (interventionId === "save_progress") {
+    return { target: "progress", type: "save_progress" };
+  }
+  if (canonicalStepId === "s3_personal_data" || canonicalStepId === "s6_personal_medical_data") {
+    return { target: "step_anchor", type: "focus_field" };
+  }
+  return { target: "primary_cta", type: "continue" };
+}
+
+function defaultChatPrompt(interventionId: string): string | null {
+  if (interventionId === "price_reframe" || interventionId === "market_comparison") {
+    return "Help me compare the online tariffs and understand the current monthly price.";
+  }
+  if (interventionId === "trust_signal") {
+    return "Explain why this information is needed and what happens next.";
+  }
+  if (interventionId === "price_gap_transparency") {
+    return "Explain why the final price changed and whether I can still continue online.";
+  }
+  if (interventionId === "simplified_explanation") {
+    return "Help me decide whether to continue with or without optional add-ons.";
+  }
+  return null;
 }
 
 function hasRecentPriceHover(recentEvents: NormalizedEvent[]): boolean {

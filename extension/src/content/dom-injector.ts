@@ -2,6 +2,8 @@ import type {
   ChatMessage,
   CoachAction,
   CoachApiStatus,
+  CoachCta,
+  CoachCtaType,
   CoachPlacement,
   ResolvedStep,
 } from "@/shared/contracts";
@@ -23,11 +25,11 @@ const STYLES = `
   }
 
   .status-wrap {
-    bottom: 24px;
+    bottom: 14px;
     display: grid;
-    gap: 10px;
-    left: 24px;
-    max-width: 360px;
+    gap: 8px;
+    left: 14px;
+    max-width: min(300px, calc(100vw - 28px));
     pointer-events: auto;
     position: fixed;
   }
@@ -39,13 +41,13 @@ const STYLES = `
     background: rgba(7, 22, 58, 0.92);
     border: 1px solid rgba(255, 255, 255, 0.12);
     border-radius: 999px;
-    box-shadow: 0 12px 32px rgba(7, 22, 58, 0.2);
+    box-shadow: 0 10px 24px rgba(7, 22, 58, 0.18);
     color: #ffffff;
     cursor: pointer;
     display: inline-flex;
     gap: 10px;
     justify-self: start;
-    padding: 10px 14px;
+    padding: 8px 12px;
   }
 
   .status-pill[data-state="connected"] {
@@ -98,8 +100,8 @@ const STYLES = `
     backdrop-filter: blur(16px);
     background: rgba(7, 22, 58, 0.94);
     border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 18px;
-    box-shadow: 0 18px 50px rgba(7, 22, 58, 0.24);
+    border-radius: 16px;
+    box-shadow: 0 14px 36px rgba(7, 22, 58, 0.22);
     color: #ffffff;
     padding: 14px;
   }
@@ -150,19 +152,19 @@ const STYLES = `
   .card {
     background: linear-gradient(135deg, #07163a 0%, #0f6bb3 100%);
     border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 18px;
-    box-shadow: 0 18px 50px rgba(7, 22, 58, 0.28);
+    border-radius: 16px;
+    box-shadow: 0 14px 36px rgba(7, 22, 58, 0.24);
     color: #ffffff;
-    max-width: 360px;
-    min-width: 260px;
-    padding: 16px 16px 14px;
+    max-width: min(318px, calc(100vw - 32px));
+    min-width: min(240px, calc(100vw - 32px));
+    padding: 13px 14px 12px;
     pointer-events: auto;
     position: fixed;
   }
 
   .card[data-placement="bottom-toast"] {
-    bottom: 24px;
-    right: 24px;
+    bottom: 88px;
+    right: 16px;
   }
 
   .eyebrow {
@@ -171,16 +173,16 @@ const STYLES = `
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.08em;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     text-transform: uppercase;
   }
 
   .title {
     display: block;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 700;
     line-height: 1.3;
-    margin-bottom: 6px;
+    margin-bottom: 5px;
   }
 
   .body {
@@ -188,13 +190,14 @@ const STYLES = `
     display: block;
     font-size: 13px;
     line-height: 1.45;
-    margin-bottom: 14px;
+    margin-bottom: 12px;
   }
 
   .actions {
     align-items: center;
     display: flex;
-    gap: 10px;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   .cta,
@@ -205,7 +208,7 @@ const STYLES = `
     cursor: pointer;
     font: inherit;
     font-size: 13px;
-    padding: 8px 12px;
+    padding: 8px 11px;
   }
 
   .cta {
@@ -221,10 +224,10 @@ const STYLES = `
   }
 
   .chat-dock {
-    bottom: 22px;
+    bottom: 14px;
     pointer-events: auto;
     position: fixed;
-    right: 22px;
+    right: 14px;
     z-index: 2147483647;
   }
 
@@ -234,16 +237,16 @@ const STYLES = `
     background: #07163a;
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 999px;
-    box-shadow: 0 14px 34px rgba(7, 22, 58, 0.28);
+    box-shadow: 0 10px 26px rgba(7, 22, 58, 0.24);
     color: #ffffff;
     cursor: pointer;
     display: flex;
     font: inherit;
-    font-size: 22px;
+    font-size: 19px;
     font-weight: 800;
-    height: 58px;
+    height: 48px;
     justify-content: center;
-    width: 58px;
+    width: 48px;
   }
 
   .chat-panel {
@@ -254,9 +257,9 @@ const STYLES = `
     color: #10203d;
     display: flex;
     flex-direction: column;
-    height: min(560px, calc(100vh - 48px));
+    height: min(460px, calc(100vh - 32px));
     overflow: hidden;
-    width: min(420px, calc(100vw - 32px));
+    width: min(360px, calc(100vw - 28px));
   }
 
   .chat-header {
@@ -393,10 +396,35 @@ const STYLES = `
     min-height: 42px;
     padding: 0 14px;
   }
+
+  @media (max-width: 720px) {
+    .status-wrap {
+      bottom: 10px;
+      left: 10px;
+      max-width: calc(100vw - 76px);
+    }
+
+    .card {
+      left: 10px !important;
+      max-width: calc(100vw - 20px);
+      right: auto !important;
+    }
+
+    .card[data-placement="bottom-toast"] {
+      bottom: 72px;
+    }
+
+    .chat-dock {
+      bottom: 10px;
+      right: 10px;
+    }
+  }
 `;
 
 export interface CoachInteraction {
   action: CoachAction;
+  cta: CoachCta | null;
+  result?: PageActionResult;
   type: "coach_cta" | "coach_dismiss";
 }
 
@@ -409,6 +437,26 @@ export interface ChatRequest {
 interface VisibleLogEntry {
   message: string;
   timestamp: number;
+}
+
+interface PageActionResult {
+  message: string;
+  status: "success" | "fallback_chat" | "not_supported" | "target_missing";
+  target: string | null;
+  type: CoachCtaType | "dismiss";
+}
+
+interface CoachRenderState {
+  activeActionIds: string[];
+  actionable: boolean;
+  apiState: CoachApiStatus["state"];
+  cardCount: number;
+  initialized: boolean;
+  lastActionResult: PageActionResult | null;
+  lastRenderAt: number;
+  layoutFallback: string | null;
+  placement: CoachPlacement | null;
+  renderState: "bootstrapping" | "idle" | "rendered" | "actioning" | "error";
 }
 
 export class DomInjector {
@@ -436,11 +484,28 @@ export class DomInjector {
   private statusLogs: VisibleLogEntry[] = [];
   private chatOpen = false;
   private chatLoading = false;
+  private layoutFallback: string | null = null;
+  private pendingChatPrompt = "";
   private selectedChatModel = this.chatModel;
+  private renderState: CoachRenderState = {
+    activeActionIds: [],
+    actionable: false,
+    apiState: "starting",
+    cardCount: 0,
+    initialized: false,
+    lastActionResult: null,
+    lastRenderAt: 0,
+    layoutFallback: null,
+    placement: null,
+    renderState: "bootstrapping",
+  };
 
   constructor(
     private readonly onInteraction: (interaction: CoachInteraction) => void,
-    private readonly onChatRequest: (request: ChatRequest) => Promise<ChatMessage>,
+    private readonly onChatRequest: (request: ChatRequest) => Promise<ChatMessage> = async () => ({
+      content: "Chat is unavailable in this environment.",
+      role: "assistant",
+    }),
     private readonly hasConfiguredChatApiKey = false,
     private readonly chatModel = "unknown model",
     private readonly chatModelOptions = [chatModel],
@@ -497,6 +562,10 @@ export class DomInjector {
     this.shadowRootRef.append(style, this.layer, this.chatDock);
     document.body.appendChild(this.host);
     this.renderChat();
+    this.publishRenderState({
+      initialized: true,
+      renderState: "idle",
+    });
 
     window.addEventListener("scroll", this.reposition, { passive: true });
     window.addEventListener("resize", this.reposition);
@@ -513,6 +582,16 @@ export class DomInjector {
   clear(): void {
     this.activeActions.clear();
     this.layer.replaceChildren(this.statusWrap);
+    this.layoutFallback = null;
+    this.publishRenderState({
+      activeActionIds: [],
+      actionable: false,
+      cardCount: 0,
+      lastRenderAt: Date.now(),
+      layoutFallback: null,
+      placement: null,
+      renderState: "idle",
+    });
   }
 
   render(actions: CoachAction[], step: ResolvedStep | null): CoachAction[] {
@@ -521,7 +600,7 @@ export class DomInjector {
     this.activeActions.clear();
 
     const displayed: CoachAction[] = [];
-    for (const action of actions) {
+    for (const action of actions.slice(0, 1)) {
       const card = this.renderCard(action);
       this.activeActions.set(action.id, action);
       this.layer.appendChild(card);
@@ -529,6 +608,15 @@ export class DomInjector {
     }
 
     this.reposition();
+    this.publishRenderState({
+      activeActionIds: displayed.map((action) => action.id),
+      actionable: displayed.some((action) => Boolean(resolveCta(action))),
+      cardCount: displayed.length,
+      lastRenderAt: Date.now(),
+      layoutFallback: this.layoutFallback,
+      placement: displayed[0]?.placement ?? null,
+      renderState: displayed.length > 0 ? "rendered" : "idle",
+    });
     return displayed.filter((action) => {
       if (this.impressed.has(action.id)) {
         return false;
@@ -541,6 +629,10 @@ export class DomInjector {
   updateStatus(status: CoachApiStatus): void {
     this.statusPill.dataset.state = status.state;
     this.statusMessage.textContent = status.message;
+    this.publishRenderState({
+      apiState: status.state,
+      renderState: status.state === "error" ? "error" : this.renderState.renderState,
+    });
     const formattedTime = formatTime(status.lastUpdatedAt);
     this.statusMeta.replaceChildren(
       buildMetaLine(`State: ${status.state}`),
@@ -583,13 +675,24 @@ export class DomInjector {
     const actions = document.createElement("div");
     actions.className = "actions";
 
-    if (action.ctaLabel) {
+    const ctaAction = resolveCta(action);
+    if (ctaAction) {
       const cta = document.createElement("button");
       cta.className = "cta";
+      cta.dataset.actionTarget = ctaAction.target ?? "";
+      cta.dataset.actionType = ctaAction.type;
       cta.type = "button";
-      cta.textContent = action.ctaLabel;
+      cta.textContent = ctaAction.label;
       cta.addEventListener("click", () => {
-        this.onInteraction({ action, type: "coach_cta" });
+        void (async () => {
+          this.publishRenderState({ renderState: "actioning" });
+          const result = await this.executeCta(action, ctaAction);
+          this.publishRenderState({
+            lastActionResult: result,
+            renderState: this.activeActions.size > 0 ? "rendered" : "idle",
+          });
+          this.onInteraction({ action, cta: ctaAction, result, type: "coach_cta" });
+        })();
       });
       actions.appendChild(cta);
     }
@@ -600,9 +703,32 @@ export class DomInjector {
       dismiss.type = "button";
       dismiss.textContent = "Schließen";
       dismiss.addEventListener("click", () => {
-        this.onInteraction({ action, type: "coach_dismiss" });
+        this.onInteraction({
+          action,
+          cta: null,
+          result: {
+            message: "Dismissed coach card",
+            status: "success",
+            target: action.id,
+            type: "dismiss",
+          },
+          type: "coach_dismiss",
+        });
         card.remove();
         this.activeActions.delete(action.id);
+        this.publishRenderState({
+          activeActionIds: Array.from(this.activeActions.keys()),
+          actionable: Array.from(this.activeActions.values()).some((active) => Boolean(resolveCta(active))),
+          cardCount: this.activeActions.size,
+          lastActionResult: {
+            message: "Dismissed coach card",
+            status: "success",
+            target: action.id,
+            type: "dismiss",
+          },
+          lastRenderAt: Date.now(),
+          renderState: this.activeActions.size > 0 ? "rendered" : "idle",
+        });
       });
       actions.appendChild(dismiss);
     }
@@ -703,6 +829,7 @@ export class DomInjector {
     input.className = "chat-input";
     input.placeholder = "Ask the coach...";
     input.rows = 2;
+    input.value = this.pendingChatPrompt;
     const send = document.createElement("button");
     send.className = "chat-send";
     send.disabled = this.chatLoading;
@@ -711,6 +838,7 @@ export class DomInjector {
     form.append(input, send);
     form.addEventListener("submit", (event) => {
       event.preventDefault();
+      this.pendingChatPrompt = "";
       void this.submitChat(input.value, keyInput.value);
     });
 
@@ -752,7 +880,158 @@ export class DomInjector {
     return [...new Set(options)];
   }
 
+  private async executeCta(action: CoachAction, cta: CoachCta): Promise<PageActionResult> {
+    const result = this.executePageAction(cta);
+    if (result.status === "success") {
+      this.addLogMessage(result.message);
+      return result;
+    }
+
+    const prompt = cta.prompt ?? fallbackPrompt(action, result);
+    this.openChat(prompt);
+    const fallbackResult: PageActionResult = {
+      ...result,
+      status: "fallback_chat",
+      message: `${result.message}; opened coach chat`,
+    };
+    this.addLogMessage(fallbackResult.message);
+    return fallbackResult;
+  }
+
+  private executePageAction(cta: CoachCta): PageActionResult {
+    if (cta.type === "open_chat" || cta.type === "save_progress") {
+      this.openChat(cta.prompt);
+      return {
+        message: "Opened coach chat",
+        status: "success",
+        target: cta.target,
+        type: cta.type,
+      };
+    }
+
+    if (cta.type === "advisor_handoff") {
+      const anchor = this.findStepAnchor();
+      if (anchor instanceof HTMLElement) {
+        anchor.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      this.openChat(cta.prompt);
+      return {
+        message: "Opened advisor guidance",
+        status: "success",
+        target: cta.target,
+        type: cta.type,
+      };
+    }
+
+    if (cta.type === "select_tariff") {
+      const target = this.findTariffTarget(cta.target);
+      if (!target) {
+        return {
+          message: "Could not find tariff target",
+          status: "target_missing",
+          target: cta.target,
+          type: cta.type,
+        };
+      }
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      target.click();
+      return {
+        message: `Selected ${cta.target ?? "tariff"}`,
+        status: "success",
+        target: cta.target,
+        type: cta.type,
+      };
+    }
+
+    if (cta.type === "continue") {
+      const target = queryFirst(document, this.currentStep?.config.selectors.primaryCta ?? []);
+      if (!(target instanceof HTMLElement)) {
+        return {
+          message: "Could not find primary CTA",
+          status: "target_missing",
+          target: cta.target,
+          type: cta.type,
+        };
+      }
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      target.click();
+      return {
+        message: "Clicked primary CTA",
+        status: "success",
+        target: cta.target,
+        type: cta.type,
+      };
+    }
+
+    if (cta.type === "focus_field") {
+      const target = this.findFocusableTarget(cta.target);
+      if (!target) {
+        return {
+          message: "Could not find a field to focus",
+          status: "target_missing",
+          target: cta.target,
+          type: cta.type,
+        };
+      }
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      target.focus({ preventScroll: true });
+      return {
+        message: "Focused the relevant page area",
+        status: "success",
+        target: cta.target,
+        type: cta.type,
+      };
+    }
+
+    return {
+      message: "CTA type is not supported by this page",
+      status: "not_supported",
+      target: cta.target,
+      type: cta.type,
+    };
+  }
+
+  private findFocusableTarget(target: string | null): HTMLElement | null {
+    if (target && target !== "step_anchor") {
+      const direct = document.querySelector(target);
+      if (direct instanceof HTMLElement) {
+        return direct;
+      }
+    }
+
+    const incomplete = document.querySelector(
+      "input:not([type='hidden']):not(:disabled):not([readonly]), textarea:not(:disabled), select:not(:disabled)",
+    );
+    if (incomplete instanceof HTMLElement) {
+      return incomplete;
+    }
+    const anchor = this.findStepAnchor();
+    return anchor instanceof HTMLElement ? anchor : null;
+  }
+
+  private findStepAnchor(): Element | null {
+    return queryFirst(document, this.currentStep?.config.selectors.stepAnchor ?? []);
+  }
+
+  private findTariffTarget(target: string | null): HTMLElement | null {
+    const normalized = (target ?? "optimal").toLowerCase();
+    const selectorsByTarget: Record<string, string[]> = {
+      optimal: ["[aria-label='Wählen Optimal']", "[data-cy='selectionButton_1']"],
+      opt_plus: ["[aria-label='Wählen Opt. Plus']", "[data-cy='selectionButton_2']"],
+      premium: ["[aria-label='Wählen Premium']", "[data-cy='selectionButton_3']"],
+      start: ["[aria-label='Wählen Start']", "[data-cy='selectionButton_0']"],
+    };
+    return queryFirst(document, selectorsByTarget[normalized] ?? [target ?? ""]) as HTMLElement | null;
+  }
+
+  private openChat(prompt: string | null): void {
+    this.pendingChatPrompt = prompt ?? "";
+    this.chatOpen = true;
+    this.renderChat();
+  }
+
   private readonly reposition = (): void => {
+    this.layoutFallback = null;
     for (const node of Array.from(this.layer.children)) {
       if (!(node instanceof HTMLElement) || node === this.statusWrap) {
         continue;
@@ -760,27 +1039,41 @@ export class DomInjector {
 
       const placement = (node.dataset.placement as CoachPlacement | undefined) ?? "bottom-toast";
       if (placement === "bottom-toast") {
-        node.style.bottom = "24px";
+        node.style.bottom = this.chatOpen ? "88px" : "72px";
         node.style.left = "auto";
-        node.style.right = "24px";
+        node.style.right = "16px";
         node.style.top = "auto";
         continue;
       }
 
       const anchor = resolveAnchor(this.currentStep, placement);
       if (!anchor) {
-        node.style.top = "24px";
-        node.style.left = "24px";
+        node.style.top = "16px";
+        node.style.left = "16px";
+        this.layoutFallback = "missing_anchor";
         continue;
       }
 
       const rect = anchor.getBoundingClientRect();
-      node.style.left = `${Math.max(16, Math.min(rect.left, window.innerWidth - 392))}px`;
-      node.style.top =
+      const width = Math.max(node.offsetWidth, 300);
+      const height = Math.max(node.offsetHeight, 120);
+      const left = Math.max(16, Math.min(rect.left, window.innerWidth - width - 16));
+      let top =
         placement === "near-primary-cta"
-          ? `${Math.max(16, rect.top - node.offsetHeight - 12)}px`
-          : `${Math.max(16, rect.top + 8)}px`;
+          ? rect.top - height - 10
+          : rect.top + 8;
+      if (top < 16 && placement === "near-primary-cta") {
+        top = rect.bottom + 10;
+        this.layoutFallback = "flipped_below_anchor";
+      }
+      if (top + height > window.innerHeight - 16) {
+        top = Math.max(16, window.innerHeight - height - 16);
+        this.layoutFallback = this.layoutFallback ?? "clamped_to_viewport";
+      }
+      node.style.left = `${left}px`;
+      node.style.top = `${top}px`;
     }
+    this.publishRenderState({ layoutFallback: this.layoutFallback });
   };
 
   private pushLogEntry(timestamp: number, message: string): void {
@@ -799,6 +1092,49 @@ export class DomInjector {
       }),
     );
   }
+
+  private publishRenderState(update: Partial<CoachRenderState>): void {
+    this.renderState = {
+      ...this.renderState,
+      ...update,
+    };
+    this.host.dataset.renderState = this.renderState.renderState;
+    this.host.dataset.apiState = this.renderState.apiState;
+    this.host.dataset.cardCount = String(this.renderState.cardCount);
+    this.host.dataset.actionable = String(this.renderState.actionable);
+    this.host.dataset.activeActions = this.renderState.activeActionIds.join(",");
+    this.host.dataset.lastRenderAt = String(this.renderState.lastRenderAt);
+    this.host.dataset.layoutFallback = this.renderState.layoutFallback ?? "";
+    (
+      window as Window & {
+        __UNIQA_COACH_STATE__?: CoachRenderState;
+      }
+    ).__UNIQA_COACH_STATE__ = { ...this.renderState };
+  }
+}
+
+function resolveCta(action: CoachAction): CoachCta | null {
+  if (action.cta) {
+    return action.cta;
+  }
+  if (!action.ctaLabel) {
+    return null;
+  }
+  return {
+    label: action.ctaLabel,
+    prompt: null,
+    target: "primary_cta",
+    telemetryKey: action.id,
+    type: "open_chat",
+  };
+}
+
+function fallbackPrompt(action: CoachAction, result: PageActionResult): string {
+  return [
+    `The coach action "${action.title}" could not run automatically.`,
+    result.message,
+    "Explain the next best step for this calculator page.",
+  ].join(" ");
 }
 
 function resolveAnchor(step: ResolvedStep | null, placement: CoachPlacement): Element | null {

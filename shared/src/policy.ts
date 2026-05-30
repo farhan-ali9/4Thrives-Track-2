@@ -21,6 +21,23 @@ export const coachPlacementSchema: z.ZodType<CoachPlacement> = z.enum([
   "bottom-toast",
 ]);
 
+export const coachCtaTypeSchema = z.enum([
+  "select_tariff",
+  "continue",
+  "focus_field",
+  "open_chat",
+  "advisor_handoff",
+  "save_progress",
+]);
+
+export const coachCtaSchema = z.object({
+  label: z.string().min(1),
+  type: coachCtaTypeSchema,
+  target: z.string().nullable().default(null),
+  prompt: z.string().nullable().default(null),
+  telemetryKey: z.string().nullable().default(null),
+});
+
 export const policyMetadataSchema = z
   .object({
     name: z.string(),
@@ -71,6 +88,7 @@ export const interventionSchema = z
     intent: z.string(),
     title: z.string(),
     body: z.string(),
+    cta: coachCtaSchema.nullable().optional(),
     ctaLabel: z.string().nullable(),
     shownWhen: z.array(z.string()).optional(),
     rationale: z.string(),
