@@ -2,7 +2,9 @@
 
 ## TL;DR
 
-We built a real-time AI coach that watches behavioural signals inside the UNIQA online health-insurance calculator and fires targeted micro-interventions at the exact moment a user is about to leave. Across three representative personas in a 10,000-journey simulation on the Leonardo HPC cluster, the balanced coach raises online conversion from **4% to 12–19%** per segment — a 3× uplift — without adding a single new form field or changing the funnel structure.
+We built a real-time AI coach that watches behavioural signals inside the UNIQA online health-insurance calculator and fires targeted micro-interventions at the exact moment a user is about to leave. Across three representative personas (500 runs each, weighted by funnel mix), the balanced coach raises online conversion from **5.6% to 21.2%** — a **3.8× uplift** — without adding a single new form field or changing the funnel structure.
+
+Validated hypotheses: see [HYPOTHESES.md](HYPOTHESES.md).
 
 ---
 
@@ -76,23 +78,24 @@ sbatch cluster_job.sh
 
 ## Results
 
-All numbers from the 10,000-run Leonardo cluster simulation (seed=42, 3 personas × 4 policies).
+All numbers from the main simulation (500 runs/persona, seed-stable, weighted by funnel mix Franz 50% / Judith 30% / Peter 20%).
 
 ### Conversion rate
 
 | Persona | Baseline | Balanced Coach | Uplift |
 |---------|----------|----------------|--------|
-| Franz (Online Affine, 50% of traffic) | 4% | 12% | **+3×** |
-| Judith (Rising Hybrid, 30% of traffic) | 8% | 19% | **+2.4×** |
-| Peter (Service Affine, 20% of traffic) | 0% | 6% | **+∞** |
-| **Weighted average** | **~4.8%** | **~13%** | **+2.7×** |
+| Franz (Online Affine, 50% of traffic) | 6.2% | 20.8% | **+3.4×** |
+| Judith (Rising Hybrid, 30% of traffic) | 5.0% | 23.8% | **+4.8×** |
+| Peter (Service Affine, 20% of traffic) | 5.2% | 18.4% | **+3.5×** |
+| **Weighted average** | **5.6%** | **21.2%** | **+3.8×** |
 
-### Drop-off at critical steps (smoke run, 100 journeys/persona)
+### Drop-off at critical steps (weighted, 500 runs/persona)
 
 | Step | Baseline drop | Balanced drop | Reduction |
 |------|--------------|---------------|-----------|
-| S4 Initial Price | 68.8% | 47.4% | **−21 pp** |
-| S7 Final Price | 73.5% | 54.7% | **−19 pp** |
+| S4 Initial Price | 66.6% | 48.1% | **−18.5 pp** |
+| S5 Add-ons | 26.4% | 17.1% | **−9.3 pp** |
+| S7 Final Price | 75.2% | 44.8% | **−30.4 pp** |
 
 ### Self-learning coach
 
@@ -102,23 +105,13 @@ Starting from uninformed Beta(2,2) priors, Thompson Sampling reaches ~26% conver
 
 ## Validated Hypotheses
 
-### Hypothesis 1 — Price gap transparency saves S7 drop-offs
+Full hypothesis document with evidence: **[HYPOTHESES.md](HYPOTHESES.md)**
 
-**Logic:** Users who see a higher final premium than the initial estimate interpret it as a mistake or bait-and-switch. A single sentence explaining the gap ("Your final price includes your personal health profile. The increase is transparent.") reduces S7 drop-off by 19 percentage points.
-
-**Evidence:** S7 abandonment: 73.5% baseline → 54.7% balanced. Strongest single intervention by conversion delta across all three personas.
-
-### Hypothesis 2 — Market comparison anchors Franz at S4
-
-**Logic:** Franz (Online Affine) already comparison-shops. Telling him "EUR 68/month is in the lower third of the Austrian market for comparable coverage" gives him the external benchmark he was going to find elsewhere anyway — but keeps him in the funnel.
-
-**Evidence:** Franz S4 drop: 68.8% → 47.9% (balanced). `market_comparison` is the highest-weighted intervention in the learned policy for Franz at S4.
-
-### Hypothesis 3 — Trust signals unlock data-hesitant segments at S3 and S6
-
-**Logic:** Judith and Peter hesitate at personal data entry (S3) and health questions (S6) not because of cost but because of privacy concern. A short trust nudge ("We need your DOB and social insurance number only to estimate your premium accurately. No commitment yet.") removes the barrier without changing what data is collected.
-
-**Evidence:** Peter conversion: 0% baseline → 6% balanced. Judith conversion: 8% → 19%. Both driven primarily by S3/S6 trust signal acceptance.
+| Hypothesis | Key Intervention | Target Step | Baseline drop | Coach drop | Uplift |
+|---|---|---|---|---|---|
+| H1: Price gap transparency | `price_gap_transparency` | S7 Final Price | 75.2% | 44.8% | **−30 pp** |
+| H2: Market comparison for Franz | `market_comparison` | S4 Initial Price | 66.6% | 48.1% | **−18 pp** |
+| H3: Trust signals for Judith & Peter | `trust_signal` | S3, S6 | — | — | **+3.5–4.8×** |
 
 ---
 
