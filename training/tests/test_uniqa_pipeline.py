@@ -29,6 +29,13 @@ class UniqaPipelineParserTests(unittest.TestCase):
         self.assertEqual(args.execution_mode, "baseline")
         self.assertEqual(args.sessions, 12)
 
+    def test_local_full_loop_defaults(self):
+        parser = module.build_parser()
+        args = parser.parse_args(["local-full-loop"])
+        self.assertEqual(args.validate_sessions, 12)
+        self.assertEqual(args.bulk_sessions, 300)
+        self.assertEqual(args.evaluation_runner_mode, "validation")
+
     def test_leonardo_submit_print_only(self):
         parser = module.build_parser()
         args = parser.parse_args(["leonardo-submit", "--job", "validate", "--print-only"])

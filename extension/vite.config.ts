@@ -11,7 +11,7 @@ loadEnvFile(resolve(rootDir, ".env"), true);
 
 const featherlessApiKey =
   process.env.VITE_FEATHERLESS_API_KEY ?? process.env.FEATHERLESS_API_KEY ?? "";
-const defaultModelFallback = "meta-llama/Meta-Llama-3.1-8B-Instruct";
+const defaultModelFallback = "Qwen/Qwen2.5-7B-Instruct";
 const modelCandidates = parseModelList(
   process.env.VITE_FEATHERLESS_MODEL ?? process.env.LLM_DEFAULT_MODEL ?? defaultModelFallback,
 );

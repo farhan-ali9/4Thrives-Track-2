@@ -5,8 +5,15 @@ from dataclasses import dataclass
 from pathlib import Path
 
 LIVE_UNIQA_URL = "https://www.uniqa.at/rechner/krankenversicherung/"
-FEATHERLESS_CHAT_COMPLETIONS_URL = "https://api.featherless.ai/v1/chat/completions"
-DEFAULT_FEATHERLESS_MODEL = "MihaiPopa-1/Qwen-3-0.6B-Claude-4.7-Opus-Distilled"
+DEFAULT_FEATHERLESS_CHAT_URL = "https://api.featherless.ai/v1/chat/completions"
+DEFAULT_FEATHERLESS_MODEL = "Qwen/Qwen2.5-7B-Instruct"
+
+
+def _default_extension_path() -> Path | None:
+    built_extension = Path(__file__).resolve().parents[1] / "extension" / "dist"
+    if built_extension.exists():
+        return built_extension
+    return None
 
 
 @dataclass(frozen=True)
@@ -44,7 +51,7 @@ class BrowserRunConfig:
     extension_build_id: str = "local"
     model_version_or_policy: str = "rule-based"
     execution_mode: str = "coach"
-    llm_api_url: str = FEATHERLESS_CHAT_COMPLETIONS_URL
+    llm_api_url: str = DEFAULT_FEATHERLESS_CHAT_URL
     llm_model: str = DEFAULT_FEATHERLESS_MODEL
     llm_temperature: float = 0.2
     llm_timeout_s: float = 30.0
@@ -52,6 +59,7 @@ class BrowserRunConfig:
     @classmethod
     def from_env(cls) -> "BrowserRunConfig":
         extension = os.getenv("EXTENSION_DIST")
+        resolved_extension = Path(extension).expanduser().resolve() if extension else _default_extension_path()
         model_version = os.getenv("MODEL_VERSION_OR_POLICY", "rule-based")
         execution_mode = os.getenv("RUNNER_EXECUTION_MODE")
         if not execution_mode:
@@ -59,15 +67,15 @@ class BrowserRunConfig:
         return cls(
             site_url=os.getenv("UNIQA_CALCULATOR_URL", LIVE_UNIQA_URL),
             backend_url=os.getenv("COACH_API_URL", "http://127.0.0.1:8787"),
-            extension_path=Path(extension).expanduser().resolve() if extension else None,
+            extension_path=resolved_extension,
             output_dir=Path(os.getenv("RUNNER_OUTPUT_DIR", "artifacts/browser-runs")),
             headless=os.getenv("RUNNER_HEADLESS", "0") == "1",
             page_map_version=os.getenv("PAGE_MAP_VERSION", "live-uniqa-v1"),
             extension_build_id=os.getenv("EXTENSION_BUILD_ID", "local"),
             model_version_or_policy=model_version,
             execution_mode=execution_mode,
-            llm_api_url=os.getenv("LLM_API_URL", os.getenv("LLM_GATEWAY_URL", FEATHERLESS_CHAT_COMPLETIONS_URL)),
-            llm_model=os.getenv("LLM_MODEL", os.getenv("LLM_DEFAULT_MODEL", os.getenv("VITE_FEATHERLESS_MODEL", DEFAULT_FEATHERLESS_MODEL))),
+            llm_api_url=os.getenv("LLM_API_URL") or os.getenv("LLM_GATEWAY_URL") or DEFAULT_FEATHERLESS_CHAT_URL,
+            llm_model=os.getenv("LLM_MODEL") or os.getenv("LLM_DEFAULT_MODEL") or os.getenv("VITE_FEATHERLESS_MODEL") or DEFAULT_FEATHERLESS_MODEL,
             llm_temperature=float(os.getenv("LLM_TEMPERATURE", "0.2")),
             llm_timeout_s=float(os.getenv("LLM_TIMEOUT_S", "30")),
         )

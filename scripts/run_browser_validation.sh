@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
-if [[ -n "${LEONARDO_ENV_FILE:-}" ]]; then
-	# shellcheck disable=SC1090
-	set -a
-	source "$LEONARDO_ENV_FILE"
-	set +a
-fi
-python browser-runner/run_batch.py --mode validation --sessions "${RUNNER_SESSIONS:-3}" --experiment-id "validation-$(date +%Y%m%d-%H%M%S)"
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck disable=SC1091
+source "$ROOT/scripts/local_pipeline_env.sh"
+
+load_local_pipeline_env
+require_featherless_key
+
+(cd "$ROOT" && ./uniqa-pipeline validate-live \
+  --execution-mode "${RUNNER_EXECUTION_MODE:-baseline}" \
+  --sessions "${RUNNER_SESSIONS:-3}" \
+  --experiment-id "validation-$(date +%Y%m%d-%H%M%S)")

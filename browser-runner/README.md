@@ -18,12 +18,17 @@ Execution modes inside live runs:
 Set these before live runs:
 
 ```bash
+export FEATHERLESS_API_KEY=...
 export EXTENSION_DIST=/absolute/path/to/extension/dist
-export COACH_API_URL=https://coach-api-42il2.ondigitalocean.app/
+export COACH_API_URL=http://127.0.0.1:8787
 export RUNNER_OUTPUT_DIR=artifacts/browser-runs
+export LLM_API_URL=https://api.featherless.ai/v1/chat/completions
+export LLM_MODEL=Qwen/Qwen2.5-7B-Instruct
 ```
 
 Live runs refuse to submit purchases. `s8_confirm` is treated as an observation boundary, not a submission step.
+
+If `EXTENSION_DIST` is unset, the runner now auto-detects a local `extension/dist` build in this repo.
 
 ## Safety Breakers
 
@@ -37,20 +42,19 @@ The result JSON includes `failures`, `failure_log`, and `circuit_breaker` so fai
 
 ## LLM Persona Driver
 
-`llm_persona.py` drives the simulated customer with an OpenAI-compatible chat endpoint:
+`llm_persona.py` drives the simulated customer with an OpenAI-compatible chat endpoint. The default local path is Featherless:
 
 - persona briefing + seeded overlay
 - current step snapshot and visible price context
 - recent decision history
 - strict JSON action schema with runner-side fallback to the existing persona policy
 
-Local runs default to Featherless AI:
+Default local runner settings:
 
-```bash
-export FEATHERLESS_API_KEY=rc_your_key_here
-export LLM_API_URL=https://api.featherless.ai/v1/chat/completions
-export LLM_MODEL=MihaiPopa-1/Qwen-3-0.6B-Claude-4.7-Opus-Distilled
-```
+- calculator URL: `https://www.uniqa.at/rechner/krankenversicherung/`
+- LLM endpoint: `https://api.featherless.ai/v1/chat/completions`
+- model fallback: `Qwen/Qwen2.5-7B-Instruct`
+- optional attribution headers: `LLM_HTTP_REFERER`, `LLM_APP_TITLE`
 
 Each trace stores:
 

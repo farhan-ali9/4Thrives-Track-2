@@ -12,6 +12,9 @@ from urllib import error, request
 
 from persona_policy import PersonaPolicy, load_personas
 
+DEFAULT_HTTP_REFERER = "http://localhost"
+DEFAULT_APP_TITLE = "UNIQA Conversion Coach Runner"
+
 ALLOWED_ACTIONS_BY_STEP: dict[str, list[str]] = {
     "s1_coverage_scope": ["at_doctor", "hospital", "both", "abandon"],
     "s2_for_whom": ["myself", "other_persons", "abandon"],
@@ -210,7 +213,9 @@ class LLMPersonaDriver:
         self.api_url = api_url
         self.temperature = temperature
         self.timeout_s = timeout_s
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY") or os.getenv("VLLM_API_KEY") or os.getenv("FEATHERLESS_API_KEY")
+        self.api_key = api_key or os.getenv("FEATHERLESS_API_KEY") or os.getenv("OPENAI_API_KEY") or os.getenv("VLLM_API_KEY")
+        self.http_referer = os.getenv("LLM_HTTP_REFERER")
+        self.app_title = os.getenv("LLM_APP_TITLE")
         self.personas = load_personas()
 
     def decide(
@@ -276,6 +281,9 @@ class LLMPersonaDriver:
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
+        if "featherless.ai" in self.api_url:
+            headers["HTTP-Referer"] = self.http_referer or DEFAULT_HTTP_REFERER
+            headers["X-Title"] = self.app_title or DEFAULT_APP_TITLE
         req = request.Request(self.api_url, data=body, headers=headers, method="POST")
         try:
             with request.urlopen(req, timeout=self.timeout_s) as response:
