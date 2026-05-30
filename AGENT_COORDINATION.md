@@ -86,6 +86,7 @@ Files currently being edited:
 * extension/tests/fixtures/s7_final_price.html
 * extension/tests/fixtures/s8_confirm.html
 * extension/tests/live-smoke.spec.ts
+* extension/tests/page-observer.test.ts
 * extension/tests/step-matcher.test.ts
 * AGENT_COORDINATION.md
 
@@ -96,7 +97,7 @@ Short plan:
 * stabilize UNIQA step and out-of-scope detection
 * fill event/derived-context/rendering gaps and extend smoke coverage
 
-Last update: 2026-05-30 15:47:32 CEST
+Last update: 2026-05-30 15:49:35 CEST
 
 Notes:
 * Completed this pass:
@@ -104,10 +105,12 @@ Notes:
   * fixed a per-session event-ordering race in the extension background so concurrent observer events no longer overwrite each other
   * added session-duration extraction and corrected price-delta extraction against the previous visible price
   * tightened interaction tracking so focus/blur/pointerenter reset inactivity and button text can still classify out-of-scope path/tariff choices
+  * added direct collector coverage for hospital/other-person out-of-scope choices plus `scroll` and `inactivity` events
   * added a live smoke that loads the built MV3 extension in Chromium against the real UNIQA calculator with a mock backend and verifies coach render plus stored `coach_impression`, `coach_cta`, and `coach_dismiss` events
   * enabled `s7_final_price` using live-verified selectors for the current UNIQA journey screen titled `Bisherige Versicherungen`
   * enabled `s8_confirm` against the current live terminal `Berateranfrage` screen because the live UNIQA flow now routes this persona path into advisor request rather than a simple online confirm page
   * fixed extractor realm-safety so field/value extraction works correctly for cross-realm DOMs in JSDOM fixtures as well as the live page
+  * added observer-level coverage for `step_enter`, `step_leave`, and `price_changed`
   * added collector-level tests for out-of-scope hospital/other-person selection plus price/cancel hover capture
 * Verification on 2026-05-30:
   * `cd extension && npm test`
