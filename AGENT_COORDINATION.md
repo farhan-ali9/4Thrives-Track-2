@@ -80,8 +80,10 @@ Files currently being edited:
 * extension/src/content/data-collector.ts
 * extension/src/shared/extractors.ts
 * extension/src/shared/uniqa-page-map.json
+* extension/tests/data-collector.test.ts
 * extension/tests/integration.test.ts
 * extension/tests/fixtures/s7_final_price.html
+* extension/tests/fixtures/s8_confirm.html
 * extension/tests/live-smoke.spec.ts
 * extension/tests/step-matcher.test.ts
 * AGENT_COORDINATION.md
@@ -93,7 +95,7 @@ Short plan:
 * stabilize UNIQA step and out-of-scope detection
 * fill event/derived-context/rendering gaps and extend smoke coverage
 
-Last update: 2026-05-30 15:29:44 CEST
+Last update: 2026-05-30 15:38:12 CEST
 
 Notes:
 * Completed this pass:
@@ -102,7 +104,9 @@ Notes:
   * tightened interaction tracking so focus/blur/pointerenter reset inactivity and button text can still classify out-of-scope path/tariff choices
   * added a live smoke that loads the built MV3 extension in Chromium against the real UNIQA calculator with a mock backend and verifies coach render plus stored `coach_impression`, `coach_cta`, and `coach_dismiss` events
   * enabled `s7_final_price` using live-verified selectors for the current UNIQA journey screen titled `Bisherige Versicherungen`
+  * enabled `s8_confirm` against the current live terminal `Berateranfrage` screen because the live UNIQA flow now routes this persona path into advisor request rather than a simple online confirm page
   * fixed extractor realm-safety so field/value extraction works correctly for cross-realm DOMs in JSDOM fixtures as well as the live page
+  * added collector-level tests for out-of-scope hospital/other-person selection plus price/cancel hover capture
 * Verification on 2026-05-30:
   * `cd extension && npm test`
   * `cd extension && npm run build`
@@ -115,6 +119,7 @@ Notes:
   * `s5_add_ons`
   * `s6_personal_medical_data`
   * `s7_final_price`
+  * `s8_confirm`
 * Step 7 status:
   * live verified and enabled
   * to reach it reliably in automation, Step 6 needed valid personal/medical data including a valid Austrian-style SV number and the full phone number with country code in the phone field
@@ -122,18 +127,28 @@ Notes:
     * text: `Bisherige Versicherungen`
     * `data-cy='insuranceInPast7Years'`
     * `data-cy='rejectedApplication'`
+* Step 8 status:
+  * live verified and enabled against the current terminal advisor-request screen
+  * the current live sequence after Step 7 is:
+    * medical-history questions
+    * planned-treatment questions
+    * `Berateranfrage` consultation-choice screen
+  * live selector anchor now uses:
+    * text: `Berateranfrage`
+    * text: `Wo soll die Beratung bevorzugt stattfinden?`
+    * `data-cy='consultationContact'`
 * Remaining open area:
-  * `s8_confirm` is still unverified on the current live flow
-  * after Step 7, the website continues into deeper medical-history questions rather than an immediate final confirmation screen, so the existing `s8_confirm` mapping still needs fresh live discovery
+  * the current live site behavior does not show a straightforward online confirmation screen on this persona path, so Farhan and Andrii should treat the observed Step 8 screen in this branch as an advisor-handoff terminal state unless later backend rules say otherwise
 * Notes for Farhan:
   * current extension/backend integration in this branch still calls `POST /api/v1/coach/evaluate`
   * live-stored event types now reliably include `step_enter`, `step_resolved`, `coach_impression`, `coach_cta`, and `coach_dismiss`
-  * derived context emitted by the extension now includes `sessionDurationMs`, a corrected incremental `priceDelta`, and Step 7 field-completion data
+  * derived context emitted by the extension now includes `sessionDurationMs`, a corrected incremental `priceDelta`, Step 7 field-completion data, and Step 8 consultation-choice field-completion data
+  * if backend terminal-outcome logic keys off steps, the current live `s8_confirm` detection should be interpreted as advisor handoff on this journey
 * Notes for Andrii:
   * there is now a Playwright live smoke path that launches the built extension bundle in Chromium with `--load-extension`
-  * stable live journey coverage now reaches `s7_final_price`
-  * the live smoke contains the exact synthetic Step 6 inputs needed to advance into Step 7
-  * selector verification beyond Step 7 remains open
+  * stable live journey coverage now reaches the current terminal `Berateranfrage` screen
+  * the live smoke contains the exact synthetic Step 6 inputs needed to advance into Step 7 and then answer the post-Step-7 medical questions with `nein`
+  * if runner metrics distinguish online conversion from advisor handoff, this current live branch path should be counted as advisor handoff rather than online confirm
 * Branch check:
   * `origin/Farhan-branch` currently matches `origin/main`
   * no separate `origin` branch for Andrii was present when checked
