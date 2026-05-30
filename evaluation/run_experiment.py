@@ -58,41 +58,66 @@ def _run_mode(*, evaluation_mode: str, runner_mode: str, experiment_id: str, ses
     return ExperimentModeResult(evaluation_mode=evaluation_mode, output_dir=mode_dir, batch_summary=summary)
 
 
+def _validate_trainable_mode(evaluation_modes: tuple[str, ...], trainable_model: Path | None) -> None:
+    if "trainable" not in evaluation_modes:
+        return
+    model_path = trainable_model or Path(os.getenv("TRAINABLE_RANKER_MODEL", "artifacts/training/frequency-ranker.json"))
+    if not model_path.exists():
+        raise FileNotFoundError(f"Trainable evaluation requires a ranker model. Set TRAINABLE_RANKER_MODEL or pass --trainable-model: {model_path}")
+
+
 def run_experiment(
     *,
     experiment_id: str,
     runner_mode: str,
     sessions_per_mode: int,
     output_root: Path,
-    evaluation_modes: tuple[str, ...] = ("baseline", "rule_based"),
+    evaluation_modes: tuple[str, ...] = EVALUATION_MODES,
+    trainable_model: Path | None = None,
 ) -> dict[str, Any]:
+    _validate_trainable_mode(evaluation_modes, trainable_model)
     output_root.mkdir(parents=True, exist_ok=True)
-    results = [
-        _run_mode(
-            evaluation_mode=evaluation_mode,
-            runner_mode=runner_mode,
-            experiment_id=experiment_id,
-            sessions=sessions_per_mode,
-            output_root=output_root,
-        )
-        for evaluation_mode in evaluation_modes
-    ]
+    previous_trainable_model = os.environ.get("TRAINABLE_RANKER_MODEL")
+    if trainable_model is not None:
+        os.environ["TRAINABLE_RANKER_MODEL"] = str(trainable_model)
+    try:
+        results = [
+            _run_mode(
+                evaluation_mode=evaluation_mode,
+                runner_mode=runner_mode,
+                experiment_id=experiment_id,
+                sessions=sessions_per_mode,
+                output_root=output_root,
+            )
+            for evaluation_mode in evaluation_modes
+        ]
+    finally:
+        if trainable_model is not None:
+            if previous_trainable_model is None:
+                os.environ.pop("TRAINABLE_RANKER_MODEL", None)
+            else:
+                os.environ["TRAINABLE_RANKER_MODEL"] = previous_trainable_model
     manifest = {
         "experiment_id": experiment_id,
         "runner_mode": runner_mode,
         "sessions_per_mode": sessions_per_mode,
+        "trainable_model": str(trainable_model or os.getenv("TRAINABLE_RANKER_MODEL", "artifacts/training/frequency-ranker.json")) if "trainable" in evaluation_modes else None,
         "evaluation_modes": [result.to_json() for result in results],
     }
     manifest_path = output_root / "experiment_manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True))
 
-    report = None
+    reports = {}
     mode_dirs = {result.evaluation_mode: result.output_dir for result in results}
     if "baseline" in mode_dirs and "rule_based" in mode_dirs:
         report_path = output_root / "baseline_vs_rule_based.md"
-        report = write_report(baseline_path=mode_dirs["baseline"], treatment_path=mode_dirs["rule_based"], output=report_path)
+        reports["baseline_vs_rule_based"] = write_report(baseline_path=mode_dirs["baseline"], treatment_path=mode_dirs["rule_based"], output=report_path)
+    if "baseline" in mode_dirs and "trainable" in mode_dirs:
+        report_path = output_root / "baseline_vs_trainable.md"
+        reports["baseline_vs_trainable"] = write_report(baseline_path=mode_dirs["baseline"], treatment_path=mode_dirs["trainable"], output=report_path)
     manifest["manifest_path"] = str(manifest_path)
-    manifest["report"] = report
+    manifest["reports"] = reports
+    manifest["report"] = reports.get("baseline_vs_rule_based")
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True))
     return manifest
 
@@ -111,7 +136,8 @@ def main() -> None:
     parser.add_argument("--runner-mode", choices=["mock", "validation", "bulk"], default="mock")
     parser.add_argument("--sessions-per-mode", type=int, default=6)
     parser.add_argument("--output-root", type=Path, default=Path("artifacts/evaluation-experiments/latest"))
-    parser.add_argument("--evaluation-modes", type=_parse_modes, default=("baseline", "rule_based"), help="Comma-separated modes: baseline,rule_based,trainable")
+    parser.add_argument("--evaluation-modes", type=_parse_modes, default=EVALUATION_MODES, help="Comma-separated modes: baseline,rule_based,trainable")
+    parser.add_argument("--trainable-model", type=Path, help="Frequency ranker JSON used when trainable mode is included")
     args = parser.parse_args()
     print(json.dumps(run_experiment(
         experiment_id=args.experiment_id,
@@ -119,6 +145,7 @@ def main() -> None:
         sessions_per_mode=args.sessions_per_mode,
         output_root=args.output_root,
         evaluation_modes=args.evaluation_modes,
+        trainable_model=args.trainable_model,
     ), indent=2, sort_keys=True))
 
 

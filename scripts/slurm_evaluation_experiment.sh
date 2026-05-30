@@ -19,4 +19,5 @@ python evaluation/run_experiment.py \
   --sessions-per-mode "${RUNNER_SESSIONS_PER_MODE:-6}" \
   --experiment-id "${EXPERIMENT_ID:-leonardo-${SLURM_JOB_ID:-local}}" \
   --output-root "${EVALUATION_OUTPUT_ROOT:-artifacts/evaluation-experiments/latest}" \
-  --evaluation-modes "${EVALUATION_MODES:-baseline,rule_based}"
+  --evaluation-modes "${EVALUATION_MODES:-baseline,rule_based,trainable}" \
+  --trainable-model "${TRAINABLE_RANKER_MODEL:-artifacts/training/frequency-ranker.json}"

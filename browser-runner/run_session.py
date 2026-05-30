@@ -2,10 +2,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import sys
 import time
 import uuid
 from pathlib import Path
 from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "training"))
+from action_ranker import DEFAULT_CANDIDATES, load_ranker, predict_action
 
 from event_factory import make_runner_event
 from persona_policy import ONLINE_STEPS, classify_outcome, load_personas
@@ -33,6 +39,22 @@ def _metadata(config: BrowserRunConfig, *, experiment_id: str, persona_id: str, 
     }
 
 
+def _ranker_model_path() -> Path:
+    return Path(os.getenv("TRAINABLE_RANKER_MODEL", "artifacts/training/frequency-ranker.json"))
+
+
+def _intervention_for_step(step_id: str, config: BrowserRunConfig) -> str | None:
+    if config.model_version_or_policy == "baseline-no-coach":
+        return None
+    if config.model_version_or_policy == "trainable-ranker":
+        model_path = _ranker_model_path()
+        if not model_path.exists():
+            raise RuntimeError(f"TRAINABLE_RANKER_MODEL does not exist: {model_path}")
+        model = load_ranker(model_path)
+        return predict_action(model, step_id=step_id, candidates=DEFAULT_CANDIDATES)
+    return "price_transparency" if step_id in {"s4_initial_price", "s7_final_price"} else None
+
+
 def run_mock_session(*, persona_id: str, intention: str, experiment_id: str, seed: int, config: BrowserRunConfig) -> dict[str, Any]:
     personas = load_personas()
     policy = personas[persona_id]
@@ -40,7 +62,7 @@ def run_mock_session(*, persona_id: str, intention: str, experiment_id: str, see
     metadata = _metadata(config, experiment_id=experiment_id, persona_id=persona_id, intention=intention, seed=seed)
     events: list[dict[str, Any]] = []
     for index, step_id in enumerate(ONLINE_STEPS):
-        intervention = "price_transparency" if step_id in {"s4_initial_price", "s7_final_price"} else None
+        intervention = _intervention_for_step(step_id, config)
         action = policy.action_for_step(step_id=step_id, intention=intention, intervention_kind=intervention, seed=seed)
         event = make_runner_event(
             session_id=session_id,

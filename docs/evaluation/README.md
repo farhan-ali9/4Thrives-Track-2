@@ -1,7 +1,6 @@
 # Evaluation Pipeline
 
-The evaluation pipeline compares baseline, rule-based coach, and trainable coach modes from stored session traces.
-For the hackathon demo, the minimum comparison is baseline versus rule-based coach.
+The evaluation pipeline compares baseline, rule-based coach, and trainable coach modes from stored session traces. Trainable mode loads a frequency action-ranker model and uses its top prediction as the intervention for each step with learned rankings.
 
 Before reporting metrics, validate traces:
 
@@ -29,7 +28,7 @@ Metrics currently implemented in `evaluation/metrics.py`:
 - trace completeness rate
 
 
-Run a full baseline versus rule-based experiment layout:
+Run a full baseline, rule-based, and trainable experiment layout after training a ranker:
 
 ```bash
 bash scripts/run_evaluation_experiment.sh
@@ -41,11 +40,13 @@ This writes:
 artifacts/evaluation-experiments/latest/
   baseline/*.json
   rule_based/*.json
+  trainable/*.json
   experiment_manifest.json
   baseline_vs_rule_based.md
+  baseline_vs_trainable.md
 ```
 
-Set `EVALUATION_MODES=baseline,rule_based,trainable` after trainable mode is connected.
+Use `TRAINABLE_RANKER_MODEL=artifacts/training/frequency-ranker.json` to point evaluation at a trained model. The runner fails fast if trainable mode is requested without a model file.
 
 Compare modes:
 

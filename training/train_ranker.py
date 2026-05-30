@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from action_ranker import DEFAULT_CANDIDATES
 
 
 def train_frequency_ranker(dataset: Path, output: Path) -> dict:
@@ -15,7 +19,7 @@ def train_frequency_ranker(dataset: Path, output: Path) -> dict:
         counts[row["current_step_id"]][row["chosen_candidate"]] += 1
     model = {step: counter.most_common() for step, counter in counts.items()}
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps({"model_type": "frequency_action_ranker", "ranking_by_step": model}, indent=2, sort_keys=True))
+    output.write_text(json.dumps({"model_type": "frequency_action_ranker", "candidate_set": DEFAULT_CANDIDATES, "ranking_by_step": model}, indent=2, sort_keys=True))
     return {"examples": len(rows), "output": str(output)}
 
 

@@ -2,16 +2,19 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from action_ranker import load_ranker, predict_action
 
 
 def evaluate_ranker(dataset: Path, model_path: Path) -> dict:
     rows = [json.loads(line) for line in dataset.read_text().splitlines() if line.strip()]
-    model = json.loads(model_path.read_text())["ranking_by_step"]
+    model = load_ranker(model_path)
     correct = 0
     for row in rows:
-        ranking = model.get(row["current_step_id"], [])
-        top = ranking[0][0] if ranking else None
+        top = predict_action(model, step_id=row["current_step_id"], candidates=row.get("candidate_set"))
         correct += int(top == row["chosen_candidate"])
     return {"examples": len(rows), "top1_accuracy": correct / len(rows) if rows else 0.0}
 

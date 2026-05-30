@@ -21,7 +21,10 @@ python training/build_dataset.py --traces artifacts/browser-runs --output artifa
 python training/quality_checks.py artifacts/datasets/action-ranking.jsonl --fail-on-error
 python training/train_ranker.py --dataset artifacts/datasets/action-ranking.jsonl --output artifacts/training/frequency-ranker.json
 python training/evaluate_ranker.py --dataset artifacts/datasets/action-ranking.jsonl --model artifacts/training/frequency-ranker.json
+TRAINABLE_RANKER_MODEL=artifacts/training/frequency-ranker.json bash scripts/run_evaluation_experiment.sh
 ```
+
+`training/action_ranker.py` is the shared prediction helper used by offline ranker evaluation and by browser-runner trainable mode. Unknown steps produce no intervention rather than falling back to a rule-based action.
 
 Dataset rows include:
 
