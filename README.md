@@ -16,6 +16,11 @@ The project focuses on the measured hackathon scope:
 - `streamlit_app/`: interactive dashboard for side-by-side journeys, batch
   results, persona profiles, scope, and case-material review.
 - `case_materials/`: hackathon reference files used to ground the prototype.
+- `extension/`: Chrome extension prototype for the live UNIQA calculator with
+  step detection, sanitized telemetry, `chrome.storage.local` persistence,
+  remote coach API support, and injected coach UI.
+- `mock-coach-api/`: local TypeScript stub server for the extension's coach API
+  contract.
 
 ## Run The Backend Simulation
 
@@ -45,6 +50,36 @@ http://localhost:8501
 
 The UI works without an LLM key using the local rule-based persona simulator.
 To enable LLM-backed personas, set `FEATHERLESS_API_KEY` in `.env`.
+
+## Run The Extension
+
+```bash
+cd extension
+npm install
+npm run build
+```
+
+Load `extension/dist` as an unpacked Chrome extension.
+
+To run the local coach stub:
+
+```bash
+cd mock-coach-api
+npm install
+npm start
+```
+
+Useful extension commands:
+
+```bash
+cd extension
+npm test
+npm run test:live
+npm run demo
+```
+
+`npm run demo` launches Chromium with the built extension and saves manual demo
+screenshots under `extension/demo-artifacts/`.
 
 ## Requirement Fit
 
