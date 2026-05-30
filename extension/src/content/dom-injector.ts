@@ -15,7 +15,7 @@ const STYLES = `
   }
 
   .layer {
-    font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Open Sans", sans-serif;
     position: fixed;
     inset: 0;
     pointer-events: none;
