@@ -106,7 +106,7 @@ def run_live_session(*, persona_id: str, intention: str, experiment_id: str, see
     with sync_playwright() as p:
         context = p.chromium.launch_persistent_context(
             str(user_data_dir),
-            headless=False,
+            headless=config.headless,
             args=[
                 f"--disable-extensions-except={config.extension_path}",
                 f"--load-extension={config.extension_path}",
