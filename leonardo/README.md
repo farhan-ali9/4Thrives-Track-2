@@ -18,6 +18,9 @@ Important variables:
 - `LLM_API_URL`, `LLM_MODEL`: OpenAI-compatible persona endpoint details.
 - `PIXI_BIN`, `RUNNER_MANIFEST`, `VLLM_MANIFEST`: explicit runtime locations used by the Slurm wrappers.
 - `VLLM_SERVE_CMD`: optional override if you want a custom `vLLM` launch command.
+- `LEONARDO_PROXY_URL`: required for live UNIQA access from compute nodes unless your partition has direct outbound internet.
+
+Submit-time variables such as `EXPERIMENT_ID`, `RUNNER_EXECUTION_MODE`, and `RUNNER_SESSIONS` now override values from `leonardo/.env`.
 
 ## Key Scripts
 
@@ -44,5 +47,7 @@ artifacts/
 ## Notes
 
 - Chrome extension live mode requires a persistent Chromium context.
+- Leonardo compute nodes do not have direct internet access. Live UNIQA runs need the approved HTTP/HTTPS proxy configured in `LEONARDO_PROXY_URL` or the standard proxy env vars.
+- The Leonardo proxy is a low-bandwidth workaround and may restart periodically. Several hundred live browser sessions through that proxy may be fragile; if bulk live generation is unstable, run live collection on a machine with direct internet and keep Leonardo for training/evaluation.
 - `s8_confirm` remains an observation boundary; purchase submission is not part of the loop.
 - Synthetic or mock traces are fine for smoke tests, not for the real training set.

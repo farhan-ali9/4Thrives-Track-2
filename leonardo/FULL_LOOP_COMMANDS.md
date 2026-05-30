@@ -65,12 +65,15 @@ RUNNER_OUTPUT_DIR=artifacts/browser-runs
 PIXI_BIN=$HOME/.pixi/bin/pixi
 RUNNER_MANIFEST=leonardo/pixi.toml
 VLLM_MANIFEST=leonardo-vllm/pixi.toml
+LEONARDO_PROXY_URL=http://<proxy-user>:<proxy-secret>@<proxy-host>:<proxy-port>
 LLM_API_URL=http://127.0.0.1:8000/v1/chat/completions
 LLM_MODEL=meta-llama/Meta-Llama-3.1-8B-Instruct
 RUNNER_SESSIONS=12
 RUNNER_SESSIONS_PER_MODE=6
 EVALUATION_MODES=baseline,rule_based,trainable
 ```
+
+The live UNIQA site will not load from Leonardo compute nodes without the approved proxy. Do not hardcode the real proxy secret into tracked files.
 
 Start from a clean run directory:
 
@@ -99,6 +102,8 @@ RUNNER_EXECUTION_MODE=coach \
 EXPERIMENT_ID=coach-validate-vllm \
 sbatch --export=ALL,LEONARDO_ENV_FILE=$PWD/leonardo/.env leonardo/slurm_validate_live_vllm.sh
 ```
+
+Submit-time overrides such as `EXPERIMENT_ID=...` and `RUNNER_EXECUTION_MODE=...` now take precedence over the values inside `leonardo/.env`.
 
 Check status and logs:
 
@@ -137,6 +142,8 @@ RUNNER_SESSIONS=300 \
 EXPERIMENT_ID=coach-bulk-vllm \
 sbatch --export=ALL,LEONARDO_ENV_FILE=$PWD/leonardo/.env leonardo/slurm_bulk_live_vllm.sh
 ```
+
+Be conservative with bulk live runs through the Leonardo proxy. The cluster notes describe it as a low-bandwidth workaround that may restart periodically. If you see repeated `net::ERR_ADDRESS_UNREACHABLE` or dropped connections at scale, move the live browsing phase to a machine with direct internet access and keep Leonardo for dataset building, training, and evaluation.
 
 ## 5. Build Datasets
 
