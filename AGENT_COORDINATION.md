@@ -212,7 +212,7 @@ Do not edit:
 * backend/*
 * database migrations unless agreed with Farhan
 
-Status: Runner safety and metrics expansion implemented locally; coordination update ready to share
+Status: Trace validation, reporting, and dataset quality checks implemented locally; coordination update ready to share
 
 Files currently being edited:
 
@@ -235,14 +235,20 @@ Completed files:
 * personas/variants.json
 * replay/render_timeline.py
 * replay/replay_session.py
+* replay/trace_store.py
+* replay/validate_traces.py
+* replay/tests/test_trace_store.py
 * evaluation/metrics.py
 * evaluation/compare_modes.py
 * evaluation/reports.py
 * evaluation/tests/test_metrics.py
+* evaluation/tests/test_reports.py
 * training/build_dataset.py
 * training/train_ranker.py
 * training/evaluate_ranker.py
 * training/tests/test_build_dataset.py
+* training/quality_checks.py
+* training/tests/test_quality_checks.py
 * leonardo/README.md
 * leonardo/pixi.toml
 * leonardo/slurm_browser_batch.sh
@@ -253,10 +259,10 @@ Completed files:
 * docs/evaluation/README.md
 * docs/training/README.md
 
-Last update: 2026-05-30 15:24 CEST
+Last update: 2026-05-30 15:29 CEST
 
 Notes:
-Andrii implemented the first local scaffold for persona policies, safe mock/live runner entry points, replay, metrics, trace-to-dataset, simple post-trace ranker training, Leonardo batch docs/scripts, and focused unit tests. Follow-up expansion added classified runner failures, batch `failure_log` and `circuit_breaker` summaries, explicit backend/selector failure tests, and metrics for advisor-routing correctness, conversion by intention, persona-step drop-off, intervention acceptance/dismiss/annoyance, precision/recall, selector drift, backend timeout, and inference latency. Verified with `python3 -m unittest discover -s browser-runner/tests -p 'test_*.py'`, `python3 -m unittest discover -s evaluation/tests -p 'test_*.py'`, `python3 -m unittest discover -s training/tests -p 'test_*.py'`, mock batch smoke, dataset build smoke, compare-modes smoke, replay smoke, ranker training smoke, and ranker evaluation smoke. David: live validation will need `EXTENSION_DIST` pointing at the built extension and stable live selectors/render signals; origin/david-branch moved at 15:21 CEST but only changed coordination status, so no implementation changes were integrated. Farhan: dataset builder expects trace events with `derived_context.intervention_kind`, `runner_metadata`, and terminal outcomes; origin/Farhan-Branch still matched the agents-spec commit at 15:21 CEST.
+Andrii implemented the first local scaffold for persona policies, safe mock/live runner entry points, replay, metrics, trace-to-dataset, simple post-trace ranker training, Leonardo batch docs/scripts, and focused unit tests. Follow-up expansion added classified runner failures, batch `failure_log` and `circuit_breaker` summaries, explicit backend/selector failure tests, and metrics for advisor-routing correctness, conversion by intention, persona-step drop-off, intervention acceptance/dismiss/annoyance, precision/recall, selector drift, backend timeout, and inference latency. Latest slice added local/backend-export trace validation, validation CLI, markdown report generation, dataset quality checks, and tests for those gates. Verified with `python3 -m unittest discover -s browser-runner/tests -p 'test_*.py'`, `python3 -m unittest discover -s evaluation/tests -p 'test_*.py'`, `python3 -m unittest discover -s training/tests -p 'test_*.py'`, `python3 -m unittest discover -s replay/tests -p 'test_*.py'`, mock batch smoke, trace validation smoke, dataset build smoke, dataset quality smoke, compare/report smoke, replay smoke, ranker training smoke, and ranker evaluation smoke. David: live validation will need `EXTENSION_DIST` pointing at the built extension and stable live selectors/render signals; origin/david-branch still only differs by coordination status, so no implementation changes were integrated. Farhan: dataset builder expects trace events with `derived_context.intervention_kind`, `runner_metadata`, and terminal outcomes; origin/Farhan-Branch still matched the agents-spec commit at 15:26 CEST.
 
 ---
 
