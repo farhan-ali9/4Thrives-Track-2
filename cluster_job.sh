@@ -2,7 +2,7 @@
 #
 # Leonardo HPC cluster — UNIQA Conversion Coach simulation
 # User:    a08trc04
-# Account: tra26_min
+# Account: tra26_minwinsc
 #
 # How to use:
 #   1. SSH into Leonardo:  ssh a08trc04@login.leonardo.cineca.it
@@ -12,7 +12,7 @@
 #   5. Results:            ls coach_sim/results/cluster/
 #
 #SBATCH --job-name=uniqa-coach-sim
-#SBATCH --account=tra26_min
+#SBATCH --account=tra26_minwinsc
 #SBATCH --partition=boost_usr_prod
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=32
