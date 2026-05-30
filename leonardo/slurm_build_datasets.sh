@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-#SBATCH --job-name=uniqa-replay
-#SBATCH --output=artifacts/logs/replay-%j.out
-#SBATCH --error=artifacts/logs/replay-%j.err
-#SBATCH --time=00:10:00
+#SBATCH --job-name=uniqa-build-datasets
+#SBATCH --output=artifacts/logs/build-datasets-%j.out
+#SBATCH --error=artifacts/logs/build-datasets-%j.err
+#SBATCH --time=00:15:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=2

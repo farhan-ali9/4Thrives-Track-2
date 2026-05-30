@@ -26,6 +26,9 @@ if [[ -z "${PIXI_CACHE_DIR:-}" ]]; then
 fi
 mkdir -p "$PIXI_CACHE_DIR"
 
+: "${PIXI_BIN:=$HOME/.pixi/bin/pixi}"
+: "${RUNNER_MANIFEST:=leonardo/pixi.toml}"
+
 if [[ -n "${VLLM_SERVE_CMD:-}" ]]; then
   eval "$VLLM_SERVE_CMD" > "artifacts/logs/vllm-${SLURM_JOB_ID:-local}.out" 2>&1 &
   export VLLM_PID=$!
@@ -33,7 +36,7 @@ if [[ -n "${VLLM_SERVE_CMD:-}" ]]; then
   sleep "${VLLM_BOOT_WAIT_S:-20}"
 fi
 
-CMD=(./uniqa-pipeline run-live
+CMD=("$PIXI_BIN" run --manifest-path "$RUNNER_MANIFEST" ./uniqa-pipeline run-live
   --execution-mode "${RUNNER_EXECUTION_MODE:-coach}"
   --sessions "${RUNNER_SESSIONS:-300}"
   --experiment-id "${EXPERIMENT_ID:-leonardo-bulk-${SLURM_JOB_ID:-local}}")

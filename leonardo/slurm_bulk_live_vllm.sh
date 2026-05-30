@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-#SBATCH --job-name=uniqa-validate-vllm
-#SBATCH --output=artifacts/logs/validate-vllm-%j.out
-#SBATCH --error=artifacts/logs/validate-vllm-%j.err
+#SBATCH --job-name=uniqa-bulk-vllm
+#SBATCH --output=artifacts/logs/bulk-vllm-%j.out
+#SBATCH --error=artifacts/logs/bulk-vllm-%j.err
 #SBATCH --partition=boost_usr_prod
 #SBATCH --reservation=s_tra_ncc
 #SBATCH --account=EUHPC_D30_031
-#SBATCH --time=01:00:00
+#SBATCH --time=08:00:00
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gpus-per-task=1
@@ -46,10 +46,10 @@ export VLLM_PID=$!
 trap 'kill ${VLLM_PID:-0} >/dev/null 2>&1 || true' EXIT
 sleep "$VLLM_BOOT_WAIT_S"
 
-CMD=("$PIXI_BIN" run --manifest-path "$RUNNER_MANIFEST" ./uniqa-pipeline validate-live
+CMD=("$PIXI_BIN" run --manifest-path "$RUNNER_MANIFEST" ./uniqa-pipeline run-live
   --execution-mode "${RUNNER_EXECUTION_MODE:-coach}"
-  --sessions "${RUNNER_SESSIONS:-12}"
-  --experiment-id "${EXPERIMENT_ID:-leonardo-validation-vllm}")
+  --sessions "${RUNNER_SESSIONS:-300}"
+  --experiment-id "${EXPERIMENT_ID:-leonardo-bulk-vllm-${SLURM_JOB_ID:-local}}")
 if [[ -n "${RUNNER_OUTPUT_DIR:-}" ]]; then
   CMD+=(--output-dir "$RUNNER_OUTPUT_DIR")
 fi

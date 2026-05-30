@@ -1,76 +1,48 @@
 # Leonardo Execution Plan
 
-Leonardo jobs now go through the same `./uniqa-pipeline` CLI as local runs.
-Run live browser jobs only after the extension is built and the coach backend is reachable from the job environment.
+Leonardo jobs go through the checked-in `./uniqa-pipeline` CLI, wrapped by Pixi inside the Slurm scripts so the cluster does not depend on the system Python.
+
+## Start Here
+
+- Read [FULL_LOOP_COMMANDS.md](/Users/davidklingbeil2/Documents/Hackathon/Uniqa_hackathon/4Thrives-Track-2/leonardo/FULL_LOOP_COMMANDS.md) for the copy-paste command sequence.
+- Copy `leonardo/env.example` to `leonardo/.env` and set the paths for your checkout.
+- Build the extension locally before syncing to Leonardo; the live coach flow depends on `extension/dist`.
 
 ## Environment
 
-Copy `leonardo/env.example` and set site/backend/extension paths before submitting jobs.
+Important variables:
 
-Required variables:
-
-- `EXTENSION_DIST`: absolute path to the built Chrome extension directory.
+- `EXTENSION_DIST`: absolute path to the built Chrome extension directory on Leonardo.
 - `COACH_API_URL`: coach backend origin, for example `http://127.0.0.1:8787`.
-- `UNIQA_CALCULATOR_URL`: live calculator URL, defaults to the public UNIQA page.
 - `RUNNER_OUTPUT_DIR`: directory for JSON traces, screenshots, and reports.
-- `RUNNER_EXECUTION_MODE`: `baseline` or `coach`.
-- `PAGE_MAP_VERSION`, `EXTENSION_BUILD_ID`, `MODEL_VERSION_OR_POLICY`: metadata stamped onto every trace.
 - `LLM_API_URL`, `LLM_MODEL`: OpenAI-compatible persona endpoint details.
-- `VLLM_SERVE_CMD`: optional command that starts `vLLM` inside the same Slurm job before the runner starts.
+- `PIXI_BIN`, `RUNNER_MANIFEST`, `VLLM_MANIFEST`: explicit runtime locations used by the Slurm wrappers.
+- `VLLM_SERVE_CMD`: optional override if you want a custom `vLLM` launch command.
+
+## Key Scripts
+
+- `leonardo/slurm_validate_live.sh`: serial validation, good for baseline or coach with a remote LLM endpoint.
+- `leonardo/slurm_validate_live_vllm.sh`: GPU validation with local `vLLM`.
+- `leonardo/slurm_bulk_live.sh`: serial bulk run, only appropriate when the LLM endpoint is external.
+- `leonardo/slurm_bulk_live_vllm.sh`: GPU bulk run with local `vLLM`.
+- `leonardo/slurm_build_datasets.sh`: builds `user-policy.jsonl` and `coach-ranking.jsonl`.
+- `leonardo/slurm_train.sh`: trains the user-policy model and coach ranker.
+- `leonardo/slurm_evaluation_experiment.sh`: evaluation experiment over baseline, rule-based, and trainable modes.
 
 ## Output Layout
 
 ```text
 artifacts/
   browser-runs/<session_id>.json
-  datasets/action-ranking.jsonl
+  datasets/user-policy.jsonl
+  datasets/coach-ranking.jsonl
+  training/user-policy.json
   training/frequency-ranker.json
   evaluation-experiments/latest/
-    baseline/*.json
-    rule_based/*.json
-    experiment_manifest.json
-    baseline_vs_rule_based.md
 ```
 
-## Apptainer/Singularity
+## Notes
 
-Build the container on a system with Apptainer or Singularity:
-
-```bash
-apptainer build artifacts/containers/uniqa-runner.sif leonardo/apptainer.def
-```
-
-Run a smoke command inside it:
-
-```bash
-apptainer exec --bind "$PWD:$PWD" artifacts/containers/uniqa-runner.sif \
-  python browser-runner/run_batch.py --mode mock --sessions 1
-```
-
-Chrome extension live mode requires a non-headless persistent Chromium context. On shared clusters, use an allocated node with browser sandbox support or an approved virtual display setup.
-
-## CLI
-
-Common entrypoints:
-
-- `./uniqa-pipeline validate-live --execution-mode baseline`
-- `./uniqa-pipeline validate-live --execution-mode coach`
-- `./uniqa-pipeline run-live --execution-mode coach --sessions 300`
-- `./uniqa-pipeline build-datasets --traces artifacts/browser-runs`
-- `./uniqa-pipeline train-user-policy`
-- `./uniqa-pipeline train-coach-ranker`
-- `./uniqa-pipeline evaluate --runner-mode validation`
-
-GPU-backed local LLM validation:
-
-- `sbatch leonardo/slurm_validate_live_vllm.sh`
-
-## Job Order
-
-1. Run `leonardo/slurm_validate_live.sh` in `baseline` and `coach` mode for a few sessions.
-2. Inspect traces with `scripts/slurm_replay.sh` or `python replay/replay_session.py <trace>`.
-3. Run `scripts/slurm_evaluation_experiment.sh` for baseline versus rule-based folders and report.
-4. Build both datasets with `./uniqa-pipeline build-datasets` after real traces exist.
-5. Train with `scripts/slurm_train.sh` only after `user-policy.jsonl` and `coach-ranking.jsonl` pass their checks.
-
-Synthetic or mock traces are acceptable for unit tests and smoke checks only. They are not the primary evidence for demo metrics or model quality.
+- Chrome extension live mode requires a persistent Chromium context.
+- `s8_confirm` remains an observation boundary; purchase submission is not part of the loop.
+- Synthetic or mock traces are fine for smoke tests, not for the real training set.

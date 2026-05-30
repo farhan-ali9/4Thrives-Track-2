@@ -27,6 +27,14 @@ class UniqaPipelineParserTests(unittest.TestCase):
         self.assertFalse(result["submitted"])
         self.assertIn("sbatch", result["command"][0])
 
+    def test_leonardo_submit_supports_full_loop_jobs(self):
+        parser = module.build_parser()
+        for job_name in ("validate-vllm", "bulk-vllm", "build-datasets", "evaluate"):
+            args = parser.parse_args(["leonardo-submit", "--job", job_name, "--print-only"])
+            result = args.func(args)
+            self.assertFalse(result["submitted"])
+            self.assertTrue(result["command"][1].endswith(".sh"))
+
 
 if __name__ == "__main__":
     unittest.main()

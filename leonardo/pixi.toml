@@ -12,6 +12,7 @@ build-datasets = "./uniqa-pipeline build-datasets --traces artifacts/browser-run
 train-user-policy = "./uniqa-pipeline train-user-policy"
 train-coach-ranker = "./uniqa-pipeline train-coach-ranker"
 evaluate = "./uniqa-pipeline evaluate"
+full-loop-smoke = "./uniqa-pipeline validate-live --execution-mode baseline --sessions 1"
 
 [dependencies]
 python = ">=3.11,<3.13"

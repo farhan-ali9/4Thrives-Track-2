@@ -33,7 +33,10 @@ RUN_MODE_POLICY = {
 
 LEONARDO_JOB_SCRIPTS = {
     "validate": ROOT / "leonardo" / "slurm_validate_live.sh",
+    "validate-vllm": ROOT / "leonardo" / "slurm_validate_live_vllm.sh",
     "bulk": ROOT / "leonardo" / "slurm_bulk_live.sh",
+    "bulk-vllm": ROOT / "leonardo" / "slurm_bulk_live_vllm.sh",
+    "build-datasets": ROOT / "leonardo" / "slurm_build_datasets.sh",
     "train": ROOT / "leonardo" / "slurm_train.sh",
     "evaluate": ROOT / "leonardo" / "slurm_evaluation_experiment.sh",
 }
