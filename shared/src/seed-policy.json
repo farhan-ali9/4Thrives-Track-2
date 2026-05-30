@@ -1,0 +1,392 @@
+{
+  "metadata": {
+    "name": "UNIQA Conversion Coach Rule Configuration",
+    "version": "1.0.0",
+    "configType": "rule_based_coach_policy",
+    "decisionModel": "deterministic_rules",
+    "usesMockData": false,
+    "dataSource": "sanitized_extension_events",
+    "owner": "UNIQA Conversion Coach Team",
+    "purpose": "Maps sanitized browser behavior signals from the Chrome extension to transparent coach interventions.",
+    "importantNote": "This file is not mock coach data. It is the configurable rule base used by the local Coach API to decide which real intervention to return.",
+    "scope": {
+      "inScope": [
+        "Private-doctor insurance path",
+        "Applicant insures themself only",
+        "Start and Optimal tariffs",
+        "Online completion flow"
+      ],
+      "outOfScope": [
+        "Hospital or Sonderklasse coverage",
+        "Other insured persons",
+        "Opt. Plus tariff",
+        "Premium tariff"
+      ],
+      "outOfScopeHandling": "Out-of-scope choices are routed to advice. They are valid exits, but not counted as online conversions."
+    },
+    "runtimeNotes": [
+      "Rules are evaluated from top to bottom. The first matching rule wins.",
+      "Each rule returns the first intervention in its intervention list that has not already been shown in the same session.",
+      "Budgeted interventions count toward maxInterventionsPerJourney.",
+      "Routing interventions use bypassBudget because they are scope guards, not persuasion nudges.",
+      "The API ignores descriptive metadata fields, but they are kept here so teammates can review the logic without reading TypeScript."
+    ]
+  },
+  "signalDictionary": {
+    "long_dwell": {
+      "source": "Extension detector",
+      "meaning": "User spent at least the dwell threshold on a step.",
+      "example": "The visitor stays on the tariff comparison table without continuing.",
+      "riskInterpretation": "Possible confusion, comparison fatigue, or hesitation."
+    },
+    "back_nav": {
+      "source": "Extension detector",
+      "meaning": "User clicked a back or cancel-like control.",
+      "example": "The visitor goes back from the price page.",
+      "riskInterpretation": "Possible abandonment or unresolved concern."
+    },
+    "repeated_change": {
+      "source": "Extension detector",
+      "meaning": "User changed the same input multiple times.",
+      "example": "The visitor repeatedly adjusts social insurance or form fields.",
+      "riskInterpretation": "Possible uncertainty about required data."
+    },
+    "cancel_intent": {
+      "source": "Extension detector",
+      "meaning": "User hovered cancel/back controls or became inactive.",
+      "example": "The visitor pauses for a long time or hovers near a close/back target.",
+      "riskInterpretation": "Possible intent to leave the flow."
+    },
+    "price_fixation": {
+      "source": "Coach API derived event",
+      "meaning": "Price hover appears together with dwell or recent price attention.",
+      "example": "The visitor keeps hovering the tariff price area.",
+      "riskInterpretation": "Possible price shock or need for value framing."
+    },
+    "oos_tariff": {
+      "source": "Extension detector",
+      "meaning": "User selected an advisor-only tariff.",
+      "example": "The visitor clicks Opt. Plus or Premium.",
+      "riskInterpretation": "The selected product cannot complete online in this prototype scope."
+    },
+    "oos_path": {
+      "source": "Extension detector",
+      "meaning": "User selected a non-online scope path.",
+      "example": "The visitor selects hospital coverage or insurance for other persons.",
+      "riskInterpretation": "The journey should route to advice instead of pretending conversion is possible."
+    },
+    "price_gap_shock": {
+      "source": "Coach API derived event",
+      "meaning": "Current or final price is at least priceGapShockThresholdEur above the initial visible price.",
+      "example": "The final calculated premium is higher than the first premium shown.",
+      "riskInterpretation": "Possible late-stage abandonment from a perceived unexpected increase."
+    },
+    "none": {
+      "source": "Coach API fallback",
+      "meaning": "No material event detected.",
+      "example": "Normal forward progress.",
+      "riskInterpretation": "No coach intervention should be shown."
+    }
+  },
+  "funnelStepDictionary": {
+    "s1_coverage_scope": {
+      "name": "Coverage scope",
+      "goal": "Confirm the visitor wants private-doctor coverage rather than an out-of-scope hospital path.",
+      "mainRisk": "The visitor selects hospital coverage, which requires advice."
+    },
+    "s2_for_whom": {
+      "name": "Insured person",
+      "goal": "Confirm the visitor is insuring themself only.",
+      "mainRisk": "The visitor selects other persons, which requires advice."
+    },
+    "s3_personal_data": {
+      "name": "Quote basics",
+      "goal": "Collect enough information to calculate a preliminary premium.",
+      "mainRisk": "Sensitive-data hesitation before the value of the product is visible."
+    },
+    "s4_initial_price": {
+      "name": "Initial price and tariff choice",
+      "goal": "Help the visitor choose Start or Optimal and continue online.",
+      "mainRisk": "Price shock, comparison shopping, or clicks on advisor-only tariffs."
+    },
+    "s5_add_ons": {
+      "name": "Optional add-ons",
+      "goal": "Clarify that add-ons are optional and keep the visitor moving.",
+      "mainRisk": "Decision fatigue from optional extras."
+    },
+    "s6_health_questions": {
+      "name": "Health questions",
+      "goal": "Collect required health information for final assessment.",
+      "mainRisk": "Form fatigue or trust concerns around medical data."
+    },
+    "s7_final_price": {
+      "name": "Final price",
+      "goal": "Explain any final premium change and keep qualified users in the online flow.",
+      "mainRisk": "Late-stage abandonment caused by a higher final price."
+    },
+    "s8_confirm": {
+      "name": "Confirm purchase",
+      "goal": "Support final confidence before completion.",
+      "mainRisk": "Last-moment trust or commitment anxiety."
+    }
+  },
+  "policy": {
+    "description": "Global guardrails for how often the coach can intervene and which events count as hesitation.",
+    "maxInterventionsPerJourney": 3,
+    "maxInterventionsReason": "Keeps the assistant helpful without becoming noisy. Scope-routing messages do not count against this budget.",
+    "hesitationEvents": [
+      "long_dwell",
+      "cancel_intent",
+      "back_nav",
+      "repeated_change",
+      "price_fixation"
+    ],
+    "hesitationEventsReason": "These are behavioral signs that the user may need explanation, reassurance, or value framing.",
+    "priceGapShockThresholdEur": 3,
+    "priceGapShockThresholdReason": "A final-price increase of EUR 3 or more is treated as meaningful enough to explain."
+  },
+  "actionDefaults": {
+    "description": "Default UI behavior for coach cards unless an intervention overrides it.",
+    "cooldownMs": 90000,
+    "dismissible": true,
+    "placement": "inline-top-of-step"
+  },
+  "placementByStep": {
+    "description": "Step-specific default placements. Price and add-on decisions are placed near the primary CTA because the coach should support the next decision.",
+    "s4_initial_price": "near-primary-cta",
+    "s5_add_ons": "near-primary-cta"
+  },
+  "interventions": {
+    "none": {
+      "label": "No action",
+      "category": "system",
+      "intent": "Return no UI card.",
+      "title": "",
+      "body": "",
+      "ctaLabel": null,
+      "rationale": "Used when no rule matches or budget is exhausted."
+    },
+    "simplified_explanation": {
+      "label": "Simplified explanation",
+      "category": "comprehension",
+      "intent": "Reduce cognitive load when the visitor hesitates on optional choices.",
+      "title": "Tarife einfach einordnen",
+      "body": "Start und Optimal sind die online abschliessbaren Tarife. Optimal deckt mehr Leistungen ab, ohne in den Beratungspfad zu wechseln.",
+      "ctaLabel": "Kurz vergleichen",
+      "shownWhen": [
+        "User hesitates on add-ons",
+        "A later policy can reuse this for general comparison confusion"
+      ],
+      "rationale": "Keeps the user in the online path by explaining the decision without hiding complexity."
+    },
+    "trust_signal": {
+      "label": "Trust signal",
+      "category": "trust",
+      "intent": "Explain why sensitive information is requested before the user abandons.",
+      "title": "Warum diese Daten noetig sind",
+      "body": "Geburtsdatum und Sozialversicherung werden fuer die vorlaeufige Praemienberechnung genutzt. Es wird noch nichts abgeschlossen.",
+      "ctaLabel": "Weiter",
+      "shownWhen": [
+        "User hesitates on personal quote data",
+        "User shows cancel intent near final confirmation"
+      ],
+      "rationale": "The coach addresses trust friction without collecting or storing raw sensitive values."
+    },
+    "price_reframe": {
+      "label": "Price reframe",
+      "category": "value framing",
+      "intent": "Make the monthly premium easier to understand by reframing it as daily value.",
+      "title": "Preis kurz eingeordnet",
+      "body": "Optimal liegt hier bei rund EUR 2,25 pro Tag und bleibt vollstaendig online abschliessbar.",
+      "ctaLabel": "Tarife vergleichen",
+      "shownWhen": [
+        "User fixates on price",
+        "User appears close to leaving on initial price"
+      ],
+      "rationale": "The price page is the strongest known drop-off point, so the coach explains value without discounting or changing the product."
+    },
+    "market_comparison": {
+      "label": "Market comparison",
+      "category": "benchmarking",
+      "intent": "Help comparison-oriented users understand whether the premium is reasonable.",
+      "title": "Marktvergleich",
+      "body": "Mit rund EUR 68 pro Monat liegt Optimal im unteren Drittel vergleichbarer Privatarzt-Tarife in Oesterreich.",
+      "ctaLabel": "Optimal pruefen",
+      "shownWhen": [
+        "User navigates backward from the price page",
+        "Price reframe has already been shown in this journey"
+      ],
+      "rationale": "Prevents comparison-shopping abandonment by providing an in-flow benchmark."
+    },
+    "price_gap_transparency": {
+      "label": "Price gap transparency",
+      "category": "transparency",
+      "intent": "Explain why final price may differ from the first visible estimate.",
+      "title": "Finaler Preis erklaert",
+      "body": "Der finale Preis beruecksichtigt Ihr persoenliches Gesundheitsprofil. Sie koennen den Abschluss weiterhin online fortsetzen.",
+      "ctaLabel": "Weiter pruefen",
+      "shownWhen": [
+        "Final price increase crosses the configured threshold",
+        "User shows cancel intent at final price"
+      ],
+      "rationale": "Late-stage price changes create abandonment risk unless the reason is made explicit."
+    },
+    "tariff_route_explainer": {
+      "label": "Advisor-only tariff explainer",
+      "category": "scope routing",
+      "intent": "Recover users who click advisor-only tariffs by pointing them back to the online-completable options.",
+      "title": "Opt. Plus und Premium brauchen Beratung",
+      "body": "Opt. Plus und Premium brauchen Beratung. Fuer einen direkten Online-Abschluss bleiben Start und Optimal die passenden Optionen.",
+      "ctaLabel": "Optimal pruefen",
+      "shownWhen": [
+        "User clicks Opt. Plus",
+        "User clicks Premium"
+      ],
+      "rationale": "The user expressed tariff interest, so this keeps the online path honest while preserving a route to completion.",
+      "bypassBudget": true
+    },
+    "advisor_route": {
+      "label": "Advisor route",
+      "category": "scope routing",
+      "intent": "Cleanly route journeys that cannot be completed online in this prototype scope.",
+      "title": "Dieser Pfad braucht Beratung",
+      "body": "Krankenhaus oder weitere versicherte Personen brauchen persoenliche Beratung. Dieser Pfad ist ein sauberer Beratungsausstieg.",
+      "ctaLabel": "Verstanden",
+      "shownWhen": [
+        "User selects hospital coverage",
+        "User selects other insured persons"
+      ],
+      "rationale": "Out-of-scope paths should not be treated as failed online conversions. They should become valid advisor exits.",
+      "cooldownMs": 120000,
+      "placement": "bottom-toast",
+      "bypassBudget": true
+    },
+    "save_progress": {
+      "label": "Save progress",
+      "category": "retention",
+      "intent": "Offer a lower-pressure continuation path when final-stage hesitation persists.",
+      "title": "Fortschritt nicht verlieren",
+      "body": "Speichern Sie Ihren Fortschritt und setzen Sie den Abschluss spaeter ohne erneute Eingabe fort.",
+      "ctaLabel": "Fortschritt sichern",
+      "shownWhen": [
+        "Final price transparency and trust signal were already shown",
+        "User still has late-stage hesitation"
+      ],
+      "rationale": "Keeps a qualified user from losing progress without forcing immediate purchase."
+    }
+  },
+  "rules": [
+    {
+      "priority": 10,
+      "id": "out_of_scope_path",
+      "name": "Route out-of-scope path selections to advice",
+      "stepId": null,
+      "anyEvents": ["oos_path"],
+      "anyEventsGroup": null,
+      "interventions": ["advisor_route"],
+      "bypassBudget": true,
+      "userSituation": "The visitor selected hospital coverage or another insured person.",
+      "businessReason": "This path cannot be completed in the online Start/Optimal prototype scope.",
+      "expectedOutcome": "User understands that advice is required instead of seeing a misleading online nudge.",
+      "implementationNote": "This rule has highest priority because scope correctness matters more than conversion nudging."
+    },
+    {
+      "priority": 20,
+      "id": "out_of_scope_tariff",
+      "name": "Explain advisor-only tariffs and point back to online options",
+      "stepId": null,
+      "anyEvents": ["oos_tariff"],
+      "anyEventsGroup": null,
+      "interventions": ["tariff_route_explainer"],
+      "bypassBudget": true,
+      "userSituation": "The visitor clicked Opt. Plus or Premium on the initial price page.",
+      "businessReason": "Opt. Plus and Premium require advice, but Start and Optimal can still convert online.",
+      "expectedOutcome": "User can continue with Optimal instead of abandoning or entering an unsupported path.",
+      "implementationNote": "Placed before generic price rules so tariff scope is explained first."
+    },
+    {
+      "priority": 30,
+      "id": "quote_data_hesitation",
+      "name": "Reassure user during quote data entry",
+      "stepId": "s3_personal_data",
+      "anyEvents": [],
+      "anyEventsGroup": "hesitation",
+      "interventions": ["trust_signal"],
+      "bypassBudget": false,
+      "userSituation": "The visitor hesitates while entering date of birth or social insurance information.",
+      "businessReason": "Sensitive data questions can create trust friction before the quote is even visible.",
+      "expectedOutcome": "User understands why the data is needed and continues to the tariff page.",
+      "implementationNote": "Uses the global hesitation group to cover dwell, repeated changes, back navigation, cancel intent, and price fixation."
+    },
+    {
+      "priority": 40,
+      "id": "initial_price_fixation",
+      "name": "Reframe initial price when user fixates or may abandon",
+      "stepId": "s4_initial_price",
+      "anyEvents": ["cancel_intent", "price_fixation"],
+      "anyEventsGroup": null,
+      "interventions": ["price_reframe", "market_comparison"],
+      "bypassBudget": false,
+      "userSituation": "The visitor spends attention on the premium or appears close to leaving.",
+      "businessReason": "The initial price step is a critical drop-off point.",
+      "expectedOutcome": "User gets a concise value frame and is encouraged to compare tariffs instead of leaving.",
+      "implementationNote": "If price_reframe was already shown, the API falls back to market_comparison."
+    },
+    {
+      "priority": 50,
+      "id": "initial_price_back_nav",
+      "name": "Benchmark price when user navigates backward",
+      "stepId": "s4_initial_price",
+      "anyEvents": ["back_nav"],
+      "anyEventsGroup": null,
+      "interventions": ["market_comparison"],
+      "bypassBudget": false,
+      "userSituation": "The visitor backs away from the tariff page.",
+      "businessReason": "Back navigation at price often means comparison shopping or unresolved price concern.",
+      "expectedOutcome": "User receives a market benchmark before abandoning the quote.",
+      "implementationNote": "Runs after price fixation because explicit price fixation gets the stronger daily-value frame first."
+    },
+    {
+      "priority": 60,
+      "id": "addons_hesitation",
+      "name": "Clarify optional add-ons",
+      "stepId": "s5_add_ons",
+      "anyEvents": [],
+      "anyEventsGroup": "hesitation",
+      "interventions": ["simplified_explanation"],
+      "bypassBudget": false,
+      "userSituation": "The visitor hesitates on optional add-ons.",
+      "businessReason": "Add-ons can create decision fatigue and slow down online completion.",
+      "expectedOutcome": "User understands extras are optional and can continue without feeling blocked.",
+      "implementationNote": "The rule explains the choice. It does not remove add-ons or auto-select anything."
+    },
+    {
+      "priority": 70,
+      "id": "final_price_shock",
+      "name": "Explain final price increase",
+      "stepId": "s7_final_price",
+      "anyEvents": ["price_gap_shock", "cancel_intent"],
+      "anyEventsGroup": null,
+      "interventions": ["price_gap_transparency", "trust_signal", "save_progress"],
+      "bypassBudget": false,
+      "userSituation": "The visitor sees a final premium increase or shows abandonment intent near final price.",
+      "businessReason": "Late-stage surprise is one of the most damaging abandonment moments.",
+      "expectedOutcome": "User understands why the price changed and can still continue online.",
+      "implementationNote": "The ordered fallback sequence moves from transparency to reassurance to save-progress retention."
+    },
+    {
+      "priority": 80,
+      "id": "confirm_cancel_intent",
+      "name": "Reassure at final confirmation",
+      "stepId": "s8_confirm",
+      "anyEvents": ["cancel_intent"],
+      "anyEventsGroup": null,
+      "interventions": ["trust_signal"],
+      "bypassBudget": false,
+      "userSituation": "The visitor appears close to leaving on the final confirmation step.",
+      "businessReason": "Final hesitation may come from trust or commitment anxiety.",
+      "expectedOutcome": "User receives a calm reassurance before deciding whether to complete.",
+      "implementationNote": "This step is disabled in the current page map until verified, but the rule is ready for the full funnel."
+    }
+  ]
+}

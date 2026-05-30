@@ -44,7 +44,17 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
       .then(sendResponse)
       .catch((error) => {
         console.error("[UNIQA Coach] Event handling failed.", error);
-        sendResponse({ actions: [], signals: [] } satisfies RuntimeEventResponse);
+        sendResponse({
+          actions: [],
+          apiStatus: {
+            endpoint: "chrome.runtime",
+            lastUpdatedAt: Date.now(),
+            message: error instanceof Error ? error.message : "Unknown extension runtime error",
+            policyVersion: null,
+            state: "error",
+          },
+          signals: [],
+        } satisfies RuntimeEventResponse);
       });
     return true;
   }

@@ -8,7 +8,7 @@
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "types": ["chrome", "node", "vitest/globals"],
+    "types": ["chrome", "node", "vite/client", "vitest/globals"],
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]

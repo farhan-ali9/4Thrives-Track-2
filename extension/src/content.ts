@@ -1,8 +1,8 @@
 import type {
   CoachAction,
   DerivedContext,
-  RuntimeChatResponse,
   NormalizedEvent,
+  RuntimeChatResponse,
   RuntimeEventResponse,
   RuntimeInitResponse,
 } from "@/shared/contracts";
@@ -11,7 +11,17 @@ import { DataCollector, type InteractionEvent } from "@/content/data-collector";
 import { DomInjector } from "@/content/dom-injector";
 import { PageObserver, type ObserverEvent } from "@/content/page-observer";
 
-const EMPTY_EVENT_RESPONSE: RuntimeEventResponse = { actions: [], signals: [] };
+const EMPTY_EVENT_RESPONSE: RuntimeEventResponse = {
+  actions: [],
+  apiStatus: {
+    endpoint: "chrome.runtime",
+    lastUpdatedAt: Date.now(),
+    message: "No runtime response",
+    policyVersion: null,
+    state: "error",
+  },
+  signals: [],
+};
 let extensionContextInvalidated = false;
 
 async function bootstrap(): Promise<void> {
@@ -91,6 +101,11 @@ async function bootstrap(): Promise<void> {
     }
 
     const displayed = injector.render(actions, observer.getCurrentStep());
+    if (displayed.length) {
+      injector.addLogMessage(
+        `Rendered ${displayed.length} coach action${displayed.length === 1 ? "" : "s"}`,
+      );
+    }
     for (const action of displayed) {
       await emit({
         coachStepId: observer.getCurrentStep()?.coachStepId ?? null,
@@ -118,7 +133,12 @@ async function bootstrap(): Promise<void> {
 
       const runtimeEvent = buildObserverEvent(init.sessionId, event);
       const response = await emit(runtimeEvent);
-      await renderActions(response.actions, event.derivedContext);
+      injector.updateStatus(response.apiStatus);
+      if (response.actions.length) {
+        await renderActions(response.actions, event.derivedContext);
+      } else if (response.apiStatus.state === "connected") {
+        injector.addLogMessage("API reachable, no coach action for this event");
+      }
     })();
   });
 
@@ -128,7 +148,12 @@ async function bootstrap(): Promise<void> {
     (interaction: InteractionEvent) => {
       void (async () => {
         const response = await emit(buildInteractionEvent(init.sessionId, observer, interaction));
-        await renderActions(response.actions, interaction.derivedContext);
+        injector.updateStatus(response.apiStatus);
+        if (response.actions.length) {
+          await renderActions(response.actions, interaction.derivedContext);
+        } else if (response.apiStatus.state === "connected") {
+          injector.addLogMessage("API reachable, no coach action for this interaction");
+        }
       })();
     },
   );

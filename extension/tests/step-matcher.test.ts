@@ -21,6 +21,14 @@ describe("resolvePageStep", () => {
     expect(resolved?.pageStepId).toBe(fixtureName);
   });
 
+  test("maps verified page steps to their canonical coach steps", () => {
+    const quoteBasics = resolvePageStep(loadFixture("s3_quote_basics.html"));
+    const medicalData = resolvePageStep(loadFixture("s6_personal_medical_data.html"));
+
+    expect(quoteBasics?.coachStepId).toBe("s3_personal_data");
+    expect(medicalData?.coachStepId).toBe("s6_health_questions");
+  });
+
   test("extracts safe derived context on the tariff step", () => {
     const doc = loadFixture("s4_initial_price.html");
     const resolved = resolvePageStep(doc);

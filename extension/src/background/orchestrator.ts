@@ -1,5 +1,6 @@
 import type {
   CoachAction,
+  CoachApiStatus,
   CoachRequest,
   CoachRuntimeState,
   DerivedContext,
@@ -11,6 +12,16 @@ import type {
 import { CoachClient } from "./coach-client";
 import { deriveSignals } from "./signal-detector";
 import { UniqaStorage } from "./storage";
+
+const DEFAULT_API_STATUS: CoachApiStatus = {
+  endpoint:
+    (import.meta.env?.VITE_COACH_API_ORIGIN ?? "http://127.0.0.1:8787").replace(/\/+$/, "") +
+    "/api/v1/coach/evaluate",
+  lastUpdatedAt: 0,
+  message: "Waiting for first coach API call",
+  policyVersion: null,
+  state: "starting",
+};
 
 export class UniqaEventOrchestrator {
   constructor(
@@ -25,15 +36,20 @@ export class UniqaEventOrchestrator {
     const signals = deriveSignals(event, updatedStepState, recentEvents);
 
     if (!shouldEvaluateCoach(event, signals)) {
-      return { actions: [], signals };
+      return { actions: [], apiStatus: DEFAULT_API_STATUS, signals };
     }
 
     const coachRequest = this.buildCoachRequest(event, recentEvents, updatedStepState, signals);
-    const response = await this.coachClient.evaluate(coachRequest);
-    const actions = await this.filterActionsByCooldown(event.sessionId, event.ts, response.actions);
+    const evaluation = await this.coachClient.evaluate(coachRequest);
+    const actions = await this.filterActionsByCooldown(
+      event.sessionId,
+      event.ts,
+      evaluation.response.actions,
+    );
 
     return {
       actions,
+      apiStatus: evaluation.apiStatus,
       signals,
     };
   }
