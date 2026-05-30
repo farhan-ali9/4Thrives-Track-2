@@ -14,7 +14,7 @@ Set these before live runs:
 
 ```bash
 export EXTENSION_DIST=/absolute/path/to/extension/dist
-export COACH_API_URL=http://127.0.0.1:8787
+export COACH_API_URL=https://coach-api-42il2.ondigitalocean.app/
 export RUNNER_OUTPUT_DIR=artifacts/browser-runs
 ```
 

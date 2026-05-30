@@ -12,7 +12,9 @@ set -euo pipefail
 mkdir -p artifacts/logs
 if [[ -n "${LEONARDO_ENV_FILE:-}" ]]; then
   # shellcheck disable=SC1090
+  set -a
   source "$LEONARDO_ENV_FILE"
+  set +a
 fi
 python evaluation/run_experiment.py \
   --runner-mode "${RUNNER_MODE:-validation}" \

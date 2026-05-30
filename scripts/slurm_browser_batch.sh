@@ -12,7 +12,9 @@ set -euo pipefail
 mkdir -p artifacts/logs
 if [[ -n "${LEONARDO_ENV_FILE:-}" ]]; then
   # shellcheck disable=SC1090
+  set -a
   source "$LEONARDO_ENV_FILE"
+  set +a
 fi
 : "${RUNNER_OUTPUT_DIR:=artifacts/browser-runs}"
 : "${RUNNER_MODE:=validation}"
