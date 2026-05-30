@@ -1,0 +1,14 @@
+[project]
+name = "uniqa-conversion-coach-runner"
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[tasks]
+mock-batch = "python browser-runner/run_batch.py --mode mock --sessions 6"
+build-dataset = "python training/build_dataset.py --traces artifacts/browser-runs --output artifacts/datasets/action-ranking.jsonl"
+
+[dependencies]
+python = ">=3.11,<3.13"
+
+[pypi-dependencies]
+playwright = ">=1.44"

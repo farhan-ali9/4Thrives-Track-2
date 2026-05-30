@@ -1,0 +1,22 @@
+{
+  "persona_id": "peter",
+  "display_name": "Peter",
+  "segment": "service-affine",
+  "traits": ["overwhelmed_early", "low_complexity_tolerance", "needs_simple_next_step"],
+  "responds_to": ["simplification", "guided_next_step", "advisor_option"],
+  "base_dwell_ms": 2100,
+  "intentions": {
+    "purchase": {"continue_bias": 0.55, "abandon_bias": 0.23, "advisor_bias": 0.22, "dwell_multiplier": 1.35},
+    "orientation": {"continue_bias": 0.34, "abandon_bias": 0.36, "advisor_bias": 0.30, "dwell_multiplier": 1.65},
+    "comparison": {"continue_bias": 0.38, "abandon_bias": 0.34, "advisor_bias": 0.28, "dwell_multiplier": 1.55},
+    "price_check": {"continue_bias": 0.30, "abandon_bias": 0.46, "advisor_bias": 0.24, "dwell_multiplier": 1.45}
+  },
+  "key_cases": ["pause_early", "struggle_with_choices", "needs_guidance_before_price_page"],
+  "coach_affinity": {
+    "price_transparency": 0.55,
+    "coverage_comparison": 0.35,
+    "simplify_next_step": 0.94,
+    "trust_reassurance": 0.72,
+    "advisor_handoff": 0.70
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "variants": [
+    {"persona_variant_id": "franz_purchase_fast", "persona_id": "franz", "intention": "purchase", "seed_offset": 11},
+    {"persona_variant_id": "franz_price_check", "persona_id": "franz", "intention": "price_check", "seed_offset": 12},
+    {"persona_variant_id": "judith_research", "persona_id": "judith", "intention": "orientation", "seed_offset": 21},
+    {"persona_variant_id": "judith_price_change", "persona_id": "judith", "intention": "price_check", "seed_offset": 22},
+    {"persona_variant_id": "peter_guided", "persona_id": "peter", "intention": "purchase", "seed_offset": 31},
+    {"persona_variant_id": "peter_overwhelmed", "persona_id": "peter", "intention": "orientation", "seed_offset": 32}
+  ]
+}

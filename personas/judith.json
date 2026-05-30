@@ -1,0 +1,22 @@
+{
+  "persona_id": "judith",
+  "display_name": "Judith",
+  "segment": "rising-hybrid",
+  "traits": ["researches_online", "trust_sensitive", "needs_reassurance", "price_change_sensitive"],
+  "responds_to": ["trust_signals", "transparent_explanations", "reassurance"],
+  "base_dwell_ms": 1500,
+  "intentions": {
+    "purchase": {"continue_bias": 0.72, "abandon_bias": 0.16, "advisor_bias": 0.12, "dwell_multiplier": 1.1},
+    "orientation": {"continue_bias": 0.50, "abandon_bias": 0.30, "advisor_bias": 0.20, "dwell_multiplier": 1.5},
+    "comparison": {"continue_bias": 0.57, "abandon_bias": 0.24, "advisor_bias": 0.19, "dwell_multiplier": 1.35},
+    "price_check": {"continue_bias": 0.42, "abandon_bias": 0.44, "advisor_bias": 0.14, "dwell_multiplier": 1.25}
+  },
+  "key_cases": ["dwell_initial_price", "hover_cancel_final_price", "needs_price_change_explanation"],
+  "coach_affinity": {
+    "price_transparency": 0.88,
+    "coverage_comparison": 0.62,
+    "simplify_next_step": 0.58,
+    "trust_reassurance": 0.92,
+    "advisor_handoff": 0.48
+  }
+}

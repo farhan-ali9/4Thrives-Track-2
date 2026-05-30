@@ -212,11 +212,13 @@ Do not edit:
 * backend/*
 * database migrations unless agreed with Farhan
 
-Status: Runner event factory aligned with David v2 emitted signals; coordination update ready to share
+Status: In progress - adding reusable action-ranker prediction for trainable-mode evaluation
 
 Files currently being edited:
 
-* none
+* training/*
+* docs/training/*
+* AGENT_COORDINATION.md
 
 Completed files:
 
@@ -273,7 +275,7 @@ Completed files:
 * docs/evaluation/README.md
 * docs/training/README.md
 
-Last update: 2026-05-30 15:58 CEST
+Last update: 2026-05-30 16:00 CEST
 
 Notes:
 Andrii implemented the first local scaffold for persona policies, safe mock/live runner entry points, replay, metrics, trace-to-dataset, simple post-trace ranker training, Leonardo batch docs/scripts, and focused unit tests. Follow-up expansion added classified runner failures, batch `failure_log` and `circuit_breaker` summaries, explicit backend/selector failure tests, and metrics for advisor-routing correctness, conversion by intention, persona-step drop-off, intervention acceptance/dismiss/annoyance, precision/recall, selector drift, backend timeout, and inference latency. Trace validation slice added local/backend-export trace validation, validation CLI, markdown report generation, dataset quality checks, and tests for those gates. Experiment slice added `evaluation/run_experiment.py` plus `scripts/run_evaluation_experiment.sh` to create baseline/rule_based/trainable experiment folders, per-mode manifests, and a baseline-vs-rule report. Leonardo slice hardened execution with `leonardo/env.example`, `leonardo/apptainer.def`, README Apptainer/Singularity notes, and root `scripts/slurm_*.sh` wrappers for browser batches, replay/dataset checks, evaluation experiments, and ranker training. V2 compatibility slice aligned replay/dataset tooling with Farhan's backend export. Backend-client slice added runner-side v2 API payload helpers. Step-alignment slice reflected David's live step IDs and Step 8 advisor-handoff interpretation. Latest slice added `browser-runner/event_factory.py` and tests to generate canonical v2 runner events matching David's extension payload shape, including signal derivation for `tariff_click_oos`, `path_oos`, `inactivity`, price/cancel hover, scroll, coach CTA/dismiss, price changes, and advisor terminal screens; mock sessions now use the same event factory. Verified with `python3 -m unittest discover -s browser-runner/tests -p 'test_*.py'`, `python3 -m unittest discover -s evaluation/tests -p 'test_*.py'`, `python3 -m unittest discover -s replay/tests -p 'test_*.py'`, `python3 -m unittest discover -s training/tests -p 'test_*.py'`, plus mock batch, trace validation, dataset build, and dataset quality smoke. David: origin/david-branch now includes real extension v2 client/collector changes that this event factory mirrors. Farhan: origin/Farhan-Branch still contains the v2 telemetry/session replay implementation.

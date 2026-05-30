@@ -1,0 +1,18 @@
+Bootstrap: docker
+From: mcr.microsoft.com/playwright/python:v1.44.0-jammy
+
+%labels
+    Author Andrii
+    Project UNIQA Conversion Coach
+
+%environment
+    export PYTHONUNBUFFERED=1
+    export PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+%post
+    python -m pip install --upgrade pip
+    python -m pip install playwright
+
+%runscript
+    cd "$PWD"
+    exec "$@"

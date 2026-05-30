@@ -1,0 +1,22 @@
+{
+  "persona_id": "franz",
+  "display_name": "Franz",
+  "segment": "online-affine",
+  "traits": ["fast_moving", "comparison_focused", "price_sensitive_final", "addon_curious"],
+  "responds_to": ["transparency", "speed", "market_comparison"],
+  "base_dwell_ms": 900,
+  "intentions": {
+    "purchase": {"continue_bias": 0.86, "abandon_bias": 0.05, "advisor_bias": 0.09, "dwell_multiplier": 0.8},
+    "orientation": {"continue_bias": 0.58, "abandon_bias": 0.22, "advisor_bias": 0.20, "dwell_multiplier": 1.2},
+    "comparison": {"continue_bias": 0.68, "abandon_bias": 0.14, "advisor_bias": 0.18, "dwell_multiplier": 1.0},
+    "price_check": {"continue_bias": 0.52, "abandon_bias": 0.34, "advisor_bias": 0.14, "dwell_multiplier": 0.9}
+  },
+  "key_cases": ["click_premium_once", "navigate_back", "compare_start_vs_optimal", "hesitate_at_final_price"],
+  "coach_affinity": {
+    "price_transparency": 0.80,
+    "coverage_comparison": 0.85,
+    "simplify_next_step": 0.45,
+    "trust_reassurance": 0.55,
+    "advisor_handoff": 0.35
+  }
+}
