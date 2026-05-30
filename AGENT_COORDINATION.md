@@ -140,16 +140,40 @@ Do not edit:
 * browser-runner/*
 * ops-console/* unless agreed
 
-Status: Not started
+Status: Complete
 
-Files currently being edited:
+Files completed:
 
-* none
+* coach-api/prisma/schema.prisma — added SessionTraceEvent, ModelInferenceResult, InterventionExposure, JourneyOutcome models
+* coach-api/prisma/migrations/20260530120000_add_telemetry/migration.sql — new migration for telemetry tables
+* coach-api/src/repository.ts — extended CoachRepository interface + MemoryCoachRepository with v2 telemetry methods
+* coach-api/src/prisma-repository.ts — implemented v2 methods in PrismaCoachRepository
+* coach-api/src/guardrails.ts — hard deterministic guardrails (hospital, other persons, Opt. Plus, Premium → advisor_handoff)
+* coach-api/src/session-state.ts — session state reconstruction from event history + risk scoring (0–100)
+* coach-api/src/routes-v2.ts — all /api/v2/* route handlers
+* coach-api/src/app.ts — v2 routes wired in
+* coach-api/tests/routes-v2.test.ts — 37 tests for guardrails, intervention selection, scope routing, outcomes, exposures, session replay
+* coach-api/vitest.config.ts — vitest workspace alias config
 
-Last update: TBD
+Test results: 45/45 passed (37 v2 tests + 5 policy engine + 3 existing app tests)
+
+Last update: 2026-05-30T15:20:00Z
 
 Notes:
 Farhan owns the decision API and telemetry plane. The backend must be inspectable and should not become a pure LLM wrapper. Hard routing logic must remain deterministic.
+
+Notes for David:
+- v2 event schema: POST /api/v2/events expects { schema_version, event_id, session_id, ts, source, step_id, event_type, element_key, raw_value, derived_signals, derived_context, runner_metadata, privacy_level }
+- derived_context should include selectedTariff, coverage, insuredPerson when known
+- derived_signals should include path_oos:true or tariff_click_oos:true for OOS events
+- POST /api/v2/events returns { ok: true, actions: CoachAction[] }
+- v1 endpoint /api/v1/coach/evaluate still works for direct policy evaluation
+
+Notes for Andrii:
+- GET /api/v2/sessions/:id returns full trace { sessionId, events, decisions, exposures, outcome }
+- Outcome values: converted_online | abandoned | advisor_handoff
+- advisor_handoff does NOT count as online conversion
+- Risk score (0–100) is stored with each inference result for evaluation
 
 ---
 
