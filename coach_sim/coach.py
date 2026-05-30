@@ -155,6 +155,8 @@ class Coach:
             )
         if step == Step.S5_ADD_ONS:
             return self._pick_once(Intervention.SIMPLIFIED_EXPLANATION)
+        if step == Step.S6_HEALTH_QUESTIONS:
+            return self._pick_once(Intervention.TRUST_SIGNAL)
         if step == Step.S7_FINAL_PRICE:
             return self._pick_once(
                 Intervention.PRICE_GAP_TRANSPARENCY,
@@ -194,6 +196,10 @@ class Coach:
         # S5: add-ons are not removed; the Coach explains and keeps going.
         if step == Step.S5_ADD_ONS and self._has_hesitation(events):
             return self._pick_once(Intervention.SIMPLIFIED_EXPLANATION)
+
+        # S6: health questions — reassure on why personal health data is needed.
+        if step == Step.S6_HEALTH_QUESTIONS and self._has_hesitation(events):
+            return self._pick_once(Intervention.TRUST_SIGNAL)
 
         # S7: final price shock. This is the strongest online-conversion save.
         if step == Step.S7_FINAL_PRICE and (

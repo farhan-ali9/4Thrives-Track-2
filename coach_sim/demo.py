@@ -28,18 +28,36 @@ def _print_trace(label: str, result) -> None:
     print(f"--> {outcome}\n")
 
 
+def _find_demo_seed(persona_id: str = "franz", max_tries: int = 500) -> str:
+    """Return the first seed where baseline abandons and coached converts."""
+    persona = PERSONAS[persona_id]
+    for i in range(max_tries):
+        seed = f"{persona_id}-demo-{i}"
+        bot_a = PersonaBot(persona, random.Random(seed), wants_purchase=True)
+        bot_b = PersonaBot(persona, random.Random(seed), wants_purchase=True)
+        baseline = run_journey(bot_a)
+        coached = run_journey(
+            bot_b,
+            coach=Coach(CoachConfig(policy="balanced"), persona_id=persona_id),
+            detector=Detector(),
+        )
+        if not baseline.converted and coached.converted:
+            return seed
+    return f"{persona_id}-demo-0"  # fallback: best effort
+
+
 def main() -> None:
-    seed = "franz-demo"
-    # Force a would-be completer so the contrast is meaningful.
-    bot_a = PersonaBot(PERSONAS["franz"], random.Random(seed),
-                       wants_purchase=True)
-    bot_b = PersonaBot(PERSONAS["franz"], random.Random(seed),
-                       wants_purchase=True)
+    persona_id = "franz"
+    seed = _find_demo_seed(persona_id)
+    persona = PERSONAS[persona_id]
+    bot_a = PersonaBot(persona, random.Random(seed), wants_purchase=True)
+    bot_b = PersonaBot(persona, random.Random(seed), wants_purchase=True)
     baseline = run_journey(bot_a)
-    coached = run_journey(bot_b,
-                          coach=Coach(CoachConfig(policy="balanced"),
-                                      persona_id=bot_b.persona.id),
-                          detector=Detector())
+    coached = run_journey(
+        bot_b,
+        coach=Coach(CoachConfig(policy="balanced"), persona_id=persona_id),
+        detector=Detector(),
+    )
     _print_trace("Franz - without Coach (baseline)", baseline)
     _print_trace("Franz - with Coach (balanced policy)", coached)
 

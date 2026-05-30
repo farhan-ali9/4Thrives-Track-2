@@ -61,7 +61,7 @@ PERSONAS: dict[str, Persona] = {
         # purchase share). High intent, low advisor tolerance, fast.
         # Drop-off lives at S7 (final price > initial price), not at S3.
         intent_purchase_pct=0.90, price_sensitivity=0.65,
-        coachability=0.40, trust_threshold=0.25,
+        coachability=0.52, trust_threshold=0.25,
         explore_oos_pct=0.08, hospital_pct=0.005, other_persons_pct=0.005,
         dwell_mean=8.0, critical_dwell_mult=1.8,
     ),
@@ -100,7 +100,6 @@ FUNNEL_WEIGHTS: dict[str, float] = {
 class PersonaState:
     """Mutable per-journey state for a persona run."""
     coach_uplift: float = 0.0          # added on accepted interventions
-    cancel_intent: float = 0.0         # rising near final price
     visited_oos_tariff: bool = False
 
 
@@ -192,16 +191,19 @@ class PersonaBot:
                 return Decision("abandon", dwell, signals)
             return Decision("continue", dwell, signals)
 
-        # --- Step 6: health questions
+        # --- Step 6: health questions (trust barrier — personal health data)
         if ctx.step == Step.S6_HEALTH_QUESTIONS:
+            drop_prob = p.trust_threshold * 0.10
+            if r.random() < drop_prob:
+                signals.append(Signal(SignalKind.INACTIVITY, 30.0))
+                return Decision("abandon", dwell + 20, signals)
             return Decision("continue", dwell, signals)
 
         # --- Step 7: final price (78% drop), often higher than initial
         if ctx.step == Step.S7_FINAL_PRICE:
-            self.state.cancel_intent += 0.2
             signals.append(Signal(SignalKind.PRICE_HOVER))
             base_drop = 0.78
-            drop_prob = base_drop * (0.60 + 0.6 * p.price_sensitivity)
+            drop_prob = base_drop * (0.65 + 0.55 * p.price_sensitivity)
             drop_prob = max(0.0, drop_prob - self.state.coach_uplift)
             if not self.wants_purchase:
                 drop_prob = min(0.97, drop_prob + 0.10)

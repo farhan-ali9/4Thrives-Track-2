@@ -15,6 +15,8 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
+import time
+
 import requests
 
 from .journey import Step, StepContext
@@ -32,6 +34,10 @@ DEFAULT_MODEL = os.environ.get(
     "LLM_DEFAULT_MODEL",
     "meta-llama/Meta-Llama-3.1-8B-Instruct",
 )
+# Featherless cold starts can take 60-90s; read from env so .env controls it.
+_TIMEOUT_S = float(os.environ.get("LLM_TIMEOUT_S", "90"))
+# Delay between retries on 429 rate-limit responses.
+_RETRY_DELAY_S = float(os.environ.get("LLM_CALL_DELAY_S", "2"))
 
 
 ALLOWED_ACTIONS: dict[Step, list[str]] = {
@@ -244,25 +250,30 @@ class LLMPersonaBot(PersonaBot):
                 {"role": "user", "content": self._user_prompt(ctx)},
             ],
         }
-        try:
-            r = requests.post(
-                GATEWAY_URL,
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-                timeout=30,
-            )
-            if r.status_code != 200:
-                self.last_error = f"HTTP {r.status_code}: {r.text[:200]}"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        for attempt in range(3):
+            try:
+                r = requests.post(
+                    GATEWAY_URL, headers=headers, json=payload,
+                    timeout=_TIMEOUT_S,
+                )
+                if r.status_code == 429:
+                    time.sleep(_RETRY_DELAY_S * (attempt + 1))
+                    continue
+                if r.status_code != 200:
+                    self.last_error = f"HTTP {r.status_code}: {r.text[:200]}"
+                    return None
+                data = r.json()
+                content = data["choices"][0]["message"]["content"]
+                return json.loads(content)
+            except (requests.RequestException, KeyError, ValueError, json.JSONDecodeError) as e:
+                self.last_error = f"{type(e).__name__}: {e}"
                 return None
-            data = r.json()
-            content = data["choices"][0]["message"]["content"]
-            return json.loads(content)
-        except (requests.RequestException, KeyError, ValueError, json.JSONDecodeError) as e:
-            self.last_error = f"{type(e).__name__}: {e}"
-            return None
+        self.last_error = "Rate-limited after 3 attempts"
+        return None
 
     def decide(self, ctx: StepContext) -> Decision:
         allowed = ALLOWED_ACTIONS.get(ctx.step)

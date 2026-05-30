@@ -1,6 +1,6 @@
 # UNIQA Conversion Coach - Simulation Report
 
-Runs per persona: **2000**  
+Runs per persona: **500**  
 Personas: franz, judith, peter  
 Official funnel mix used for weighted headline: **franz 50%, judith 30%, peter 20%**
 
@@ -19,35 +19,35 @@ Official funnel mix used for weighted headline: **franz 50%, judith 30%, peter 2
 
 | Variant | Online conversion | Uplift vs baseline | Advisor-routed OOS | Abandoned | Trigger precision | Annoyance |
 |---|---|---|---|---|---|---|
-| baseline |   5.4% | - |   2.3% |  92.3% | - | - |
-| coach:minimal |  18.6% | +13.2 pp |   2.3% |  79.2% |  72.9% |  27.1% |
-| coach:balanced |  20.7% | +15.4 pp |   2.3% |  77.0% |  77.1% |  22.9% |
-| coach:aggressive |  23.1% | +17.7 pp |   2.4% |  74.6% |  68.6% |  31.4% |
+| baseline |   5.6% | - |   2.5% |  91.8% | - | - |
+| coach:minimal |  18.3% | +12.6 pp |   2.5% |  79.2% |  78.0% |  22.0% |
+| coach:balanced |  21.2% | +15.6 pp |   2.5% |  76.2% |  81.0% |  19.0% |
+| coach:aggressive |  22.4% | +16.8 pp |   2.7% |  75.0% |  73.6% |  26.4% |
 
 ## Per-persona conversion
 
 | Persona | Funnel share | baseline | coach:minimal | coach:balanced | coach:aggressive |
 |---|---|---|---|---|---|
-| franz |  50.0% |   5.0% |  17.4% |  17.2% |  16.5% |
-| judith |  30.0% |   6.2% |  22.4% |  26.4% |  32.6% |
-| peter |  20.0% |   5.2% |  15.5% |  21.2% |  25.1% |
+| franz |  50.0% |   6.2% |  21.0% |  20.8% |  19.4% |
+| judith |  30.0% |   5.0% |  16.4% |  23.8% |  27.2% |
+| peter |  20.0% |   5.2% |  14.2% |  18.4% |  22.8% |
 
 ## Critical-step drop-off - weighted view
 
 | Step | Brief anchor | baseline | coach:minimal | coach:balanced | coach:aggressive |
 |---|---|---|---|---|---|
-| s4_initial_price | 66% |  66.7% |  50.0% |  49.3% |  44.1% |
-| s5_add_ons | 24% |  21.9% |  19.4% |  17.2% |  11.9% |
-| s7_final_price | 78% |  78.1% |  51.9% |  48.5% |  52.4% |
+| s4_initial_price | 66% |  66.6% |  48.7% |  48.1% |  40.7% |
+| s5_add_ons | 24% |  26.4% |  22.4% |  17.1% |  11.0% |
+| s7_final_price | 78% |  75.2% |  49.3% |  44.8% |  53.2% |
 
 ## Unweighted diagnostic view
 
 | Variant | Conversion | Advisor-routed | Abandoned | Interventions/Accepted | Trigger precision | Annoyance |
 |---|---|---|---|---|---|---|
-| baseline |   5.5% |   2.8% |  91.8% | - | - | - |
-| coach:minimal |  18.5% |   2.8% |  78.8% | 5197/3870 |  74.5% |  25.5% |
-| coach:balanced |  21.6% |   2.8% |  75.6% | 8648/6869 |  79.4% |  20.6% |
-| coach:aggressive |  24.7% |   2.9% |  72.4% | 15327/11178 |  72.9% |  27.1% |
+| baseline |   5.5% |   3.1% |  91.4% | - | - | - |
+| coach:minimal |  17.2% |   3.1% |  79.7% | 1253/966 |  77.1% |  22.9% |
+| coach:balanced |  21.0% |   3.1% |  75.9% | 2206/1806 |  81.9% |  18.1% |
+| coach:aggressive |  23.1% |   3.3% |  73.5% | 3840/2925 |  76.2% |  23.8% |
 
 ## Qualitative before/after demo
 

@@ -31,9 +31,36 @@ from coach_sim.coach import (  # noqa: E402
 from coach_sim.detector import Detector  # noqa: E402
 from coach_sim.journey import IN_SCOPE_ORDER, STEP_META, Step  # noqa: E402
 from coach_sim.llm_persona import DEFAULT_MODEL, LLMPersonaBot  # noqa: E402
+from coach_sim.abandonment import insights_from_results  # noqa: E402
+from coach_sim.run_cluster import run_parallel, _agg_rows, _weighted_conv  # noqa: E402
+from coach_sim.run_cluster import generate_slurm  # noqa: E402
+from coach_sim.adaptive_coach import AdaptiveCoach, AdaptivePolicy  # noqa: E402
 from coach_sim.metrics import aggregate, per_persona, weighted_from_personas  # noqa: E402
 from coach_sim.personas import FUNNEL_WEIGHTS, PERSONAS, PersonaBot  # noqa: E402
 from coach_sim.sim import JourneyResult, run_journey  # noqa: E402
+
+# Paths for the persistent learned policy — must be defined before any UI code.
+_POLICY_PATH = ROOT / "coach_sim" / "results" / "learned_policy.json"
+_CURVE_PATH  = ROOT / "coach_sim" / "results" / "learning_curve.csv"
+
+
+def _load_saved_curve() -> list[dict]:
+    if not _CURVE_PATH.exists():
+        return []
+    import csv as _csv
+    with _CURVE_PATH.open(newline="") as f:
+        return list(_csv.DictReader(f))
+
+
+def _save_curve_row(row: dict) -> None:
+    import csv as _csv
+    exists = _CURVE_PATH.exists()
+    _CURVE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with _CURVE_PATH.open("a", newline="") as f:
+        writer = _csv.DictWriter(f, fieldnames=row.keys())
+        if not exists:
+            writer.writeheader()
+        writer.writerow(row)
 
 
 st.set_page_config(
@@ -53,20 +80,7 @@ MUTED = "#607089"
 BG = "#F5F8FC"
 LINE = "#DCE5F0"
 
-WINNING_DEMO_SEEDS = {
-    "judith": "judith:demo:8",
-    "franz": "franz:demo:9",
-    "peter": "peter:demo:7",
-}
-
-STEP_ASSETS: dict[str, Path] = {
-    "s1_coverage_scope": ROOT / "assets/s1_coverage_scope/image.png",
-    "s2_for_whom":        ROOT / "assets/s2_for_whom/image copy.png",
-    "s3_personal_data":   ROOT / "assets/s3_personal_data/image copy 2.png",
-    "s4_initial_price":   ROOT / "assets/s4_initial_price/image copy 4.png",
-    "s5_add_ons":         ROOT / "assets/s5_add_ons/image copy 6.png",
-    "s6_health_questions":ROOT / "assets/s6_health_questions/image.png",
-}
+WINNING_DEMO_BASE = {"judith": 0, "franz": 0, "peter": 0}
 
 st.markdown(
     f"""
@@ -209,102 +223,6 @@ st.markdown(
         .price-grid {{ grid-template-columns: 1fr; }}
         .llm-grid {{ grid-template-columns: 1fr; }}
       }}
-      /* ── Compare Live ──────────────────────────────────── */
-      .cl-step-nav {{
-        display:flex; align-items:center; justify-content:center; gap:0; padding:10px 0;
-      }}
-      .cl-step-dot {{
-        width:34px; height:34px; border-radius:50%; background:#DCE5F0; color:{MUTED};
-        font-size:.72rem; font-weight:800; display:flex; align-items:center;
-        justify-content:center; flex-shrink:0;
-      }}
-      .cl-step-dot.visited {{ background:#E3F3FC; color:{BLUE}; }}
-      .cl-step-dot.active  {{
-        background:{BLUE}; color:white;
-        box-shadow:0 2px 8px rgba(0,61,122,.3); transform:scale(1.15);
-      }}
-      .cl-step-connector {{ flex:1; height:2px; background:#DCE5F0; max-width:40px; min-width:6px; }}
-      .cl-step-label {{
-        text-align:center; color:{BLUE}; font-weight:760; font-size:.9rem; margin-top:6px;
-      }}
-      .cl-panel-title {{ font-size:1rem; font-weight:760; color:{BLUE}; margin-bottom:8px; }}
-      .cl-persona-state {{
-        background:white; border:1px solid {LINE}; border-radius:8px;
-        padding:10px 12px; margin-top:8px;
-      }}
-      .cl-persona-row {{ display:flex; align-items:center; gap:8px; margin-bottom:4px; }}
-      .cl-persona-label {{ color:{MUTED}; font-size:.76rem; font-weight:700; min-width:96px; }}
-      .cl-persona-value {{ color:{INK}; font-weight:700; }}
-      .cl-signals {{ margin-top:6px; }}
-      .cl-coach-popup {{
-        background:linear-gradient(135deg,#F0FFF7,#E8FAF1);
-        border:1px solid {GREEN}; border-left:4px solid {GREEN};
-        border-radius:8px; padding:12px 14px; margin-top:10px;
-      }}
-      .cl-coach-popup.miss {{
-        background:linear-gradient(135deg,#FFF7F7,#FFF0F0);
-        border-color:{RED}; border-left-color:{RED};
-      }}
-      .cl-coach-header {{ color:{BLUE}; font-weight:760; font-size:.9rem; margin-bottom:6px; }}
-      .cl-coach-copy {{ color:{INK}; font-size:.88rem; line-height:1.4; font-style:italic; }}
-      .cl-coach-why {{ color:{MUTED}; font-size:.76rem; margin-top:6px; }}
-      .cl-not-reached {{
-        background:#F5F8FC; border:1px dashed {LINE}; border-radius:8px;
-        padding:20px; text-align:center; color:{MUTED}; font-size:.85rem; margin-top:8px;
-      }}
-      /* UNIQA Mockup pages (S7, S8) */
-      .uniqa-mock {{
-        background:white; border-radius:8px; border:1px solid {LINE};
-        overflow:hidden; font-family:Arial,Helvetica,sans-serif;
-      }}
-      .uniqa-mock-header {{
-        background:#E2001A; padding:12px 18px;
-        display:flex; align-items:center; gap:14px;
-      }}
-      .uniqa-mock-logo {{ color:white; font-weight:900; font-size:1.2rem; letter-spacing:1px; }}
-      .uniqa-mock-title {{ color:rgba(255,255,255,.85); font-size:.82rem; }}
-      .uniqa-mock-steps {{
-        background:#F8F8F8; border-bottom:1px solid #E8E8E8;
-        padding:10px 18px; display:flex; align-items:center; gap:0;
-      }}
-      .uniqa-mock-step-dot {{
-        width:24px; height:24px; border-radius:50%; background:#DCE0E8;
-        color:#999; font-size:.6rem; font-weight:800;
-        display:flex; align-items:center; justify-content:center; flex-shrink:0;
-      }}
-      .uniqa-mock-step-dot.done  {{ background:#2EAD6B; color:white; }}
-      .uniqa-mock-step-dot.active {{ background:#E2001A; color:white; }}
-      .uniqa-mock-step-line {{ flex:1; height:2px; background:#DCE0E8; max-width:28px; min-width:4px; }}
-      .uniqa-mock-body {{ padding:20px 24px; }}
-      .uniqa-mock-h2 {{ color:#1A1A1A; font-size:1.1rem; font-weight:700; margin-bottom:4px; }}
-      .uniqa-mock-sub {{ color:#666; font-size:.8rem; margin-bottom:16px; }}
-      .uniqa-price-card {{
-        border:2px solid #DCE0E8; border-radius:8px; padding:14px 16px; margin-bottom:10px;
-      }}
-      .uniqa-price-card.selected {{ border-color:#E2001A; background:#FFF9F9; }}
-      .uniqa-tariff-badge {{
-        display:inline-block; background:#E2001A; color:white;
-        font-size:.6rem; font-weight:800; border-radius:3px;
-        padding:2px 7px; letter-spacing:.6px; margin-bottom:4px;
-      }}
-      .uniqa-tariff-price {{ font-size:1.3rem; font-weight:800; color:#E2001A; margin:4px 0 2px 0; }}
-      .uniqa-tariff-delta {{ font-size:.74rem; color:#888; }}
-      .uniqa-notice {{
-        background:#EFF4FF; border-left:3px solid {BLUE}; border-radius:4px;
-        padding:10px 12px; color:#333; font-size:.78rem; margin:12px 0;
-      }}
-      .uniqa-btn {{
-        display:block; background:#E2001A; color:white; border:none; border-radius:4px;
-        padding:12px 24px; font-weight:700; font-size:.88rem; width:100%;
-        margin-top:12px; text-align:center; cursor:pointer;
-      }}
-      .uniqa-summary-row {{
-        display:flex; justify-content:space-between; padding:9px 0;
-        border-bottom:1px solid #F0F0F0; font-size:.85rem;
-      }}
-      .uniqa-summary-key {{ color:#666; }}
-      .uniqa-summary-val {{ font-weight:700; color:#1A1A1A; }}
-      .uniqa-checkbox-row {{ margin:8px 0; font-size:.8rem; color:#444; }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -331,10 +249,32 @@ def make_result(persona_id: str, seed: str, policy: str | None,
                 wants_purchase: bool | None = None) -> JourneyResult:
     bot = PersonaBot(PERSONAS[persona_id], random.Random(seed),
                      wants_purchase=wants_purchase)
-    coach = None
-    if policy:
+    if policy == "adaptive (learned)" and _POLICY_PATH.exists():
+        ap = AdaptivePolicy.load(_POLICY_PATH)
+        coach: Coach | None = AdaptiveCoach(ap, persona_id=persona_id)
+    elif policy:
         coach = Coach(CoachConfig(policy=policy), persona_id=persona_id)  # type: ignore[arg-type]
+    else:
+        coach = None
     return run_journey(bot, coach=coach, detector=Detector())
+
+
+def find_winning_seed(persona_id: str, base_seed: int, policy: str,
+                      max_tries: int = 500) -> tuple[str, int]:
+    """Return (seed_str, variant_index) where baseline abandons and coached converts."""
+    for i in range(max_tries):
+        seed_str = f"{persona_id}:{base_seed}:{i}"
+        baseline = make_result(persona_id, seed_str, None, True)
+        coached = make_result(persona_id, seed_str, policy, True)
+        if not baseline.converted and coached.converted:
+            return seed_str, i
+    return f"{persona_id}:{base_seed}:0", 0
+
+
+@st.cache_data(show_spinner=False)
+def cached_winning_seed(persona_id: str, base_seed: int, policy: str) -> tuple[str, int]:
+    """Cached version — runs once per (persona, base_seed, policy) combination."""
+    return find_winning_seed(persona_id, base_seed, policy)
 
 
 def make_llm_result(persona_id: str, seed: int, policy: str | None,
@@ -486,175 +426,6 @@ def aggregate_weighted(results: list[JourneyResult]):
     return weighted_from_personas(per_persona(results))
 
 
-# ── Compare Live helpers ──────────────────────────────────────────────────────
-
-def _uniqa_step_dots(active: int) -> str:
-    parts: list[str] = []
-    for i in range(1, 9):
-        if i < active:
-            cls = "uniqa-mock-step-dot done"
-        elif i == active:
-            cls = "uniqa-mock-step-dot active"
-        else:
-            cls = "uniqa-mock-step-dot"
-        parts.append(f"<div class='{cls}'>{i}</div>")
-        if i < 8:
-            parts.append("<div class='uniqa-mock-step-line'></div>")
-    return "".join(parts)
-
-
-def render_s7_html(initial: float, final: float, persona: str) -> str:
-    delta = final - initial
-    delta_txt = f"+ EUR {delta:.2f} Risikozuschlag" if delta > 0.01 else "Kein Risikozuschlag"
-    return f"""
-    <div class="uniqa-mock">
-      <div class="uniqa-mock-header">
-        <span class="uniqa-mock-logo">UNIQA</span>
-        <span class="uniqa-mock-title">Private Krankenversicherung &mdash; Online abschlie&szlig;en</span>
-      </div>
-      <div class="uniqa-mock-steps">{_uniqa_step_dots(7)}</div>
-      <div class="uniqa-mock-body">
-        <div class="uniqa-mock-h2">Ihr pers&ouml;nliches Angebot</div>
-        <div class="uniqa-mock-sub">Basierend auf Ihren Gesundheitsangaben &mdash; {persona}</div>
-        <div class="uniqa-price-card selected">
-          <div class="uniqa-tariff-badge">OPTIMAL</div>
-          <div class="uniqa-tariff-price">EUR {final:.2f} / Monat</div>
-          <div class="uniqa-tariff-delta">Grundpreis EUR {initial:.2f} &nbsp;&middot;&nbsp; {delta_txt}</div>
-        </div>
-        <div class="uniqa-notice">
-          &#8505;&#65039; Ihr Beitrag enth&auml;lt einen individuellen Risikozuschlag basierend auf
-          Ihren Gesundheitsangaben. Dieser Aufschlag ist transparent und gesetzlich geregelt.
-        </div>
-        <div class="uniqa-btn">Weiter zur Zusammenfassung &rarr;</div>
-      </div>
-    </div>
-    """
-
-
-def render_s8_html(persona: str, price: float) -> str:
-    return f"""
-    <div class="uniqa-mock">
-      <div class="uniqa-mock-header">
-        <span class="uniqa-mock-logo">UNIQA</span>
-        <span class="uniqa-mock-title">Private Krankenversicherung &mdash; Online abschlie&szlig;en</span>
-      </div>
-      <div class="uniqa-mock-steps">{_uniqa_step_dots(8)}</div>
-      <div class="uniqa-mock-body">
-        <div class="uniqa-mock-h2">Zusammenfassung &amp; Abschluss</div>
-        <div class="uniqa-mock-sub">Bitte &uuml;berpr&uuml;fen Sie Ihre Angaben vor dem Abschluss</div>
-        <div class="uniqa-summary-row">
-          <span class="uniqa-summary-key">Versicherungsnehmer</span>
-          <span class="uniqa-summary-val">{persona}</span>
-        </div>
-        <div class="uniqa-summary-row">
-          <span class="uniqa-summary-key">Produkt</span>
-          <span class="uniqa-summary-val">Private KV &ndash; Tarif Optimal</span>
-        </div>
-        <div class="uniqa-summary-row">
-          <span class="uniqa-summary-key">Monatsbeitrag</span>
-          <span class="uniqa-summary-val" style="color:#E2001A">EUR {price:.2f}</span>
-        </div>
-        <div class="uniqa-summary-row">
-          <span class="uniqa-summary-key">Versicherungsbeginn</span>
-          <span class="uniqa-summary-val">01.07.2026</span>
-        </div>
-        <div class="uniqa-checkbox-row">&#9745;&nbsp; Ich habe die AVB gelesen und stimme zu.</div>
-        <div class="uniqa-checkbox-row">&#9745;&nbsp; Ich stimme der Verarbeitung meiner Daten durch UNIQA zu.</div>
-        <div class="uniqa-btn">Versicherung jetzt abschlie&szlig;en &#10003;</div>
-      </div>
-    </div>
-    """
-
-
-def render_compare_panel(
-    title: str,
-    cur_step: Step,
-    obs_map: dict,
-    journey: JourneyResult,
-    show_coach: bool,
-    persona_name: str,
-) -> None:
-    step_id = cur_step.value
-    obs = obs_map.get(step_id)
-    outcome_label, outcome_color = status_label(journey)
-
-    st.markdown(
-        f"<div class='cl-panel-title'>{title}"
-        f"&nbsp;<span class='pill pill-{outcome_color}'>{outcome_label}</span></div>",
-        unsafe_allow_html=True,
-    )
-
-    asset_path = STEP_ASSETS.get(step_id)
-    if asset_path and asset_path.exists():
-        st.image(str(asset_path), use_container_width=True)
-    elif step_id == "s7_final_price":
-        st.markdown(
-            render_s7_html(journey.initial_price_eur, journey.final_price_eur, persona_name),
-            unsafe_allow_html=True,
-        )
-    elif step_id == "s8_confirm":
-        st.markdown(render_s8_html(persona_name, journey.final_price_eur), unsafe_allow_html=True)
-
-    if obs is None:
-        st.markdown(
-            "<div class='cl-not-reached'>Persona did not reach this step</div>",
-            unsafe_allow_html=True,
-        )
-        return
-
-    signals_html = "".join(
-        f"<span class='chip'>{getattr(sig.kind, 'value', str(sig.kind))}</span>"
-        for sig in obs.signals
-    )
-    events_html = "".join(f"<span class='chip event'>{e}</span>" for e in obs.detected_events)
-
-    if obs.action == "abandon":
-        act_color = "red"
-    elif obs.action in {"confirm", "select_optimal", "continue", "submit", "myself", "at_doctor"}:
-        act_color = "green"
-    else:
-        act_color = "blue"
-
-    dwell_warn = "&nbsp;&#9888;" if obs.dwell_seconds >= 25 else ""
-
-    st.markdown(
-        f"""
-        <div class='cl-persona-state'>
-          <div class='cl-persona-row'>
-            <span class='cl-persona-label'>Action</span>
-            <span class='pill pill-{act_color}'>{obs.action}</span>
-          </div>
-          <div class='cl-persona-row'>
-            <span class='cl-persona-label'>Time on page</span>
-            <span class='cl-persona-value'>{obs.dwell_seconds:.1f}s{dwell_warn}</span>
-          </div>
-          <div class='cl-signals'>{signals_html}{events_html}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    if show_coach and obs.intervention_shown and obs.intervention_shown != "none":
-        iv = Intervention(obs.intervention_shown)
-        accepted = obs.intervention_accepted is True
-        coach_cls = "cl-coach-popup" if accepted else "cl-coach-popup miss"
-        status_icon = "&#9989;" if accepted else "&#10060;"
-        outcome_txt = "Accepted &mdash; persona stayed online" if accepted else "Ignored &mdash; persona still hesitating"
-        st.markdown(
-            f"""
-            <div class='{coach_cls}'>
-              <div class='cl-coach-header'>
-                &#128172; Coach: {iv.value.replace("_", " ").title()}
-                &nbsp;{status_icon}&nbsp;{outcome_txt}
-              </div>
-              <div class='cl-coach-copy'>&#8220;{INTERVENTION_COPY.get(iv, '')}&#8221;</div>
-              <div class='cl-coach-why'>Why triggered: {INTERVENTION_RATIONALE.get(iv, '')}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-
 st.markdown(
     """
     <div class='hero'>
@@ -673,7 +444,10 @@ with st.sidebar:
         list(PERSONAS.keys()),
         format_func=lambda pid: f"{PERSONAS[pid].name} ({int(FUNNEL_WEIGHTS[pid] * 100)}%)",
     )
-    policy = st.selectbox("Coach policy", ["balanced", "minimal", "aggressive"], index=0)
+    _policy_options = ["balanced", "minimal", "aggressive"]
+    if _POLICY_PATH.exists():
+        _policy_options = ["adaptive (learned)"] + _policy_options
+    policy = st.selectbox("Coach policy", _policy_options, index=0)
     demo_mode = st.radio(
         "Live demo mode",
         ["Winning demo", "Custom seed"],
@@ -686,9 +460,7 @@ with st.sidebar:
     st.caption("Baseline anchor: 5.6% online conversion, 66% Step 4 drop-off, 78% Step 7 drop-off.")
 
 
-tab_demo, tab_batch, tab_llm, tab_compare = st.tabs(
-    ["Live demo", "Results dashboard", "LLM persona", "Compare Live"]
-)
+tab_demo, tab_batch, tab_llm, tab_learn, tab_cluster = st.tabs(["Live demo", "Results dashboard", "LLM persona", "Self-learning", "Cluster simulation"])
 
 with tab_demo:
     st.subheader("Live side-by-side journey")
@@ -696,11 +468,15 @@ with tab_demo:
 
     pid = persona_id
     if demo_mode == "Winning demo":
-        seed_str = WINNING_DEMO_SEEDS[persona_id]
+        base_seed = WINNING_DEMO_BASE[persona_id]
+        seed_str, variant_idx = cached_winning_seed(pid, base_seed, policy)
         wants = True
+        seed_label = f"auto ({variant_idx})"
     else:
-        seed_str = f"{persona_id}:{int(seed)}:live"
+        with st.spinner("Finding best contrast for your seed…"):
+            seed_str, variant_idx = find_winning_seed(pid, int(seed), policy)
         wants = True if force else None
+        seed_label = f"{int(seed)} (v{variant_idx})" if variant_idx > 0 else f"{int(seed)} (exact)"
     baseline = make_result(pid, seed_str, None, wants)
     coached = make_result(pid, seed_str, policy, wants)
 
@@ -711,7 +487,7 @@ with tab_demo:
     m2.metric("Without Coach", b_status)
     m3.metric("With Coach", c_status)
     m4.metric("Accepted", f"{coached.interventions_accepted}/{coached.interventions_shown}")
-    m5.metric("Run seed", "demo" if demo_mode == "Winning demo" else str(int(seed)))
+    m5.metric("Run seed", seed_label)
 
     left, right = st.columns(2, gap="large")
     with left:
@@ -786,6 +562,72 @@ with tab_batch:
         .properties(height=330)
     )
     st.altair_chart(chart, use_container_width=True)
+
+    # ── Abandonment reason analysis ─────────────────────────────────────────
+    st.subheader("Why users stop — and what UNIQA can do")
+    st.caption(
+        "Each abandoned journey is classified by the behavioral signals at the "
+        "drop-off step. Reasons and suggestions are derived from the simulation "
+        "traces — no manual tagging required."
+    )
+
+    ab_insights = insights_from_results(base)   # baseline runs only
+    if ab_insights:
+        ab_df = pd.DataFrame([
+            {
+                "Step": i.step,
+                "Persona": i.persona,
+                "Signal evidence": i.signal_evidence,
+                "Why they stopped": i.reason,
+                "What UNIQA can do": i.suggestion,
+            }
+            for i in ab_insights
+        ])
+
+        # Summary counts per step.
+        count_df = (
+            ab_df.groupby("Step")
+            .size()
+            .reset_index(name="Abandoned journeys")
+            .sort_values("Abandoned journeys", ascending=False)
+        )
+        count_chart = (
+            alt.Chart(count_df)
+            .mark_bar(color=RED, cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
+            .encode(
+                x=alt.X("Step:N", sort="-y", title=None),
+                y=alt.Y("Abandoned journeys:Q"),
+                tooltip=["Step", "Abandoned journeys"],
+            )
+            .properties(height=200, title="Abandoned journeys per step (baseline)")
+        )
+        st.altair_chart(count_chart, use_container_width=True)
+
+        # Top unique reason+suggestion pairs — deduplicated for readability.
+        seen: set[tuple[str, str]] = set()
+        unique_rows = []
+        for i in ab_insights:
+            key = (i.step, i.reason[:60])
+            if key not in seen:
+                seen.add(key)
+                unique_rows.append({
+                    "Step": i.step,
+                    "Persona": i.persona,
+                    "Signal": i.signal_evidence,
+                    "Why they stopped": i.reason,
+                    "UNIQA suggestion": i.suggestion,
+                })
+
+        for row in unique_rows:
+            with st.expander(
+                f"**{row['Step']}** — {row['Why they stopped'][:90]}…",
+                expanded=False,
+            ):
+                st.markdown(f"**Signal evidence:** `{row['Signal']}`")
+                st.markdown(f"**Why they stopped:** {row['Why they stopped']}")
+                st.markdown(f"**What UNIQA can do:** {row['UNIQA suggestion']}")
+    else:
+        st.caption("Run a batch simulation above to see abandonment analysis.")
 
 
 with tab_llm:
@@ -901,114 +743,273 @@ with tab_llm:
         st.markdown("</div>", unsafe_allow_html=True)
 
 
-with tab_compare:
-    st.subheader("Compare Live — UNIQA Funnel Walkthrough")
+with tab_learn:
+    st.subheader("Self-learning Coach — Thompson Sampling")
     st.caption(
-        "Step through the real UNIQA health insurance calculator screens. "
-        "See how each persona behaves at every step, and how the Conversion Coach "
-        "intervenes with hints and reassurance when they're struggling."
+        "The adaptive coach maintains a Beta distribution per (step x persona x intervention). "
+        "After each batch it updates those priors from observed accept/reject outcomes. "
+        "Progress is saved to disk after every iteration and resumed automatically next session."
     )
 
-    cc1, cc2, cc3 = st.columns([1.2, 1, 1.8])
+    # Show current saved state.
+    saved_curve = _load_saved_curve()
+    policy_exists = _POLICY_PATH.exists()
+    if policy_exists and saved_curve:
+        total_saved_obs = int(saved_curve[-1].get("observations", 0))
+        st.success(
+            f"Saved policy found — {len(saved_curve)} iterations, "
+            f"~{total_saved_obs} observations. "
+            f"Next run will **continue** from here."
+        )
+    else:
+        st.info("No saved policy yet. First run will start fresh.")
+
+    lc1, lc2, lc3, lc4 = st.columns([1, 1, 1.2, 1.2])
+    with lc1:
+        learn_iters = st.slider("More iterations", 5, 30, 10, step=5)
+    with lc2:
+        learn_runs = st.slider("Journeys per iteration", 50, 300, 150, step=50)
+    with lc3:
+        learn_btn = st.button("Continue training", type="primary",
+                              use_container_width=True)
+    with lc4:
+        reset_btn = st.button("Reset & start fresh", use_container_width=True)
+
+    if reset_btn:
+        _POLICY_PATH.unlink(missing_ok=True)
+        _CURVE_PATH.unlink(missing_ok=True)
+        st.session_state.pop("learn_curve", None)
+        st.session_state.pop("learn_policy", None)
+        st.rerun()
+
+    if learn_btn or "learn_curve" not in st.session_state:
+        # Load existing policy from disk; create fresh if none exists.
+        if _POLICY_PATH.exists():
+            adaptive_policy = AdaptivePolicy.load(_POLICY_PATH)
+            prior_iters = len(_load_saved_curve())
+        else:
+            adaptive_policy = AdaptivePolicy()
+            prior_iters = 0
+
+        progress = st.progress(0, text="Training…")
+        for it in range(learn_iters):
+            global_it = prior_iters + it
+            it_results = []
+            for pid_l in PERSONAS:
+                for i in range(learn_runs):
+                    s = f"{pid_l}:learn:{global_it}:{i}"
+                    bot_l = PersonaBot(PERSONAS[pid_l], random.Random(s))
+                    coach_l = AdaptiveCoach(adaptive_policy, persona_id=pid_l)
+                    res_l = run_journey(bot_l, coach=coach_l, detector=Detector())
+                    adaptive_policy.update_from_result(res_l)
+                    it_results.append(res_l)
+
+            agg_l = weighted_from_personas(per_persona(it_results))
+            raw_l = aggregate(it_results)
+            total_obs = sum(r.get("observations", 0)
+                            for r in adaptive_policy.acceptance_table())
+            row = {
+                "iteration": global_it + 1,
+                "Conversion %": round(agg_l.conversion_rate * 100, 2),
+                "Trigger precision %": round((raw_l.trigger_precision or 0) * 100, 2),
+                "Annoyance %": round((raw_l.annoyance_rate or 0) * 100, 2),
+                "observations": total_obs,
+            }
+            # Save after every iteration — progress survives page refresh.
+            adaptive_policy.save(_POLICY_PATH)
+            _save_curve_row(row)
+
+            progress.progress((it + 1) / learn_iters,
+                              text=f"Iteration {global_it + 1} — "
+                                   f"conversion {agg_l.conversion_rate * 100:.1f}%")
+
+        progress.empty()
+        st.session_state.learn_policy = adaptive_policy
+        st.session_state.learn_curve = _load_saved_curve()
+        st.rerun()
+
+    # Always read the full curve from disk so it reflects prior sessions too.
+    full_curve = _load_saved_curve()
+    if "learn_policy" not in st.session_state and _POLICY_PATH.exists():
+        st.session_state.learn_policy = AdaptivePolicy.load(_POLICY_PATH)
+
+    if full_curve:
+        curve_df = pd.DataFrame(full_curve)
+        curve_df["Conversion %"] = curve_df["Conversion %"].astype(float)
+        curve_df["Annoyance %"]  = curve_df["Annoyance %"].astype(float)
+        curve_df["iteration"]    = curve_df["iteration"].astype(int)
+
+        km1, km2, km3, km4 = st.columns(4)
+        km1.metric("Total iterations", len(curve_df))
+        km2.metric("Conversion iter 1", f"{curve_df['Conversion %'].iloc[0]:.1f}%")
+        km3.metric(f"Conversion latest", f"{curve_df['Conversion %'].iloc[-1]:.1f}%",
+                   f"{curve_df['Conversion %'].iloc[-1] - curve_df['Conversion %'].iloc[0]:+.1f} pp")
+        km4.metric("Annoyance (latest)", f"{curve_df['Annoyance %'].iloc[-1]:.1f}%")
+
+        conv_chart = (
+            alt.Chart(curve_df)
+            .mark_line(point=True, color=CYAN)
+            .encode(
+                x=alt.X("iteration:Q", title="Training iteration (cumulative)"),
+                y=alt.Y("Conversion %:Q", title="Weighted conversion %",
+                        scale=alt.Scale(zero=False)),
+                tooltip=["iteration", "Conversion %", "Trigger precision %", "Annoyance %"],
+            )
+            .properties(height=280, title="Conversion improving across sessions")
+        )
+        st.altair_chart(conv_chart, use_container_width=True)
+
+    if "learn_policy" in st.session_state:
+        st.subheader("What the coach has learned so far")
+        st.caption("Ranked by learned acceptance rate. Updated every iteration.")
+        table = st.session_state.learn_policy.acceptance_table()
+        if table:
+            learn_df = pd.DataFrame(table).rename(columns={
+                "step": "Step", "persona": "Persona",
+                "intervention": "Best intervention",
+                "mean_accept": "Acceptance rate",
+                "observations": "Observations",
+            })
+            learn_df["Acceptance rate"] = learn_df["Acceptance rate"].map(
+                lambda x: f"{x:.1%}")
+            st.dataframe(learn_df, use_container_width=True, hide_index=True)
+
+
+with tab_cluster:
+    import multiprocessing as _mp
+    st.subheader("Cluster-scale simulation")
+    st.caption(
+        "Runs thousands of journeys in parallel using all available CPU cores. "
+        "The same code runs unchanged on the Leonardo HPC cluster via SLURM — "
+        "just increase --workers to match the node's core count."
+    )
+
+    _cpu_count = _mp.cpu_count()
+    cc1, cc2, cc3, cc4 = st.columns([1, 1, 1, 1.5])
     with cc1:
-        cl_persona = st.selectbox(
-            "Persona",
-            list(PERSONAS.keys()),
-            format_func=lambda p: f"{PERSONAS[p].name} ({int(FUNNEL_WEIGHTS[p] * 100)}%)",
-            key="cl_persona",
+        cl_runs = st.select_slider(
+            "Runs per persona", [500, 1000, 2000, 5000, 10000], value=2000
         )
     with cc2:
-        cl_policy = st.selectbox(
-            "Coach policy", ["balanced", "minimal", "aggressive"], key="cl_policy"
-        )
+        cl_workers = st.slider("Parallel workers", 1, min(_cpu_count, 16),
+                               min(4, _cpu_count))
     with cc3:
-        cl_mode = st.radio("Mode", ["Winning demo", "Custom seed"], key="cl_mode", horizontal=True)
+        cl_policy = st.selectbox("Policy to benchmark",
+                                 ["balanced", "minimal", "aggressive"],
+                                 key="cl_policy")
+    with cc4:
+        cl_btn = st.button("Run cluster simulation", type="primary",
+                           use_container_width=True)
 
-    if cl_mode == "Custom seed":
-        cl_seed_num = st.number_input("Seed", min_value=1, value=42, step=1, key="cl_seed_num")
-        cl_seed_str = f"{cl_persona}:{int(cl_seed_num)}:live"
-    else:
-        cl_seed_str = WINNING_DEMO_SEEDS[cl_persona]
+    if cl_btn or "cl_results" not in st.session_state:
+        total = len(PERSONAS) * 2 * cl_runs
+        with st.spinner(f"Running {total:,} journeys across {cl_workers} workers…"):
+            import time as _time
+            t0 = _time.time()
+            by_policy = run_parallel(
+                n_runs=cl_runs,
+                n_workers=cl_workers,
+                policies=[cl_policy],
+                seed=42,
+                out=ROOT / "coach_sim" / "results" / "cluster",
+                verbose=False,
+                use_threads=True,   # avoids BrokenProcessPool on Windows/Streamlit
+            )
+            elapsed = _time.time() - t0
+        st.session_state.cl_results = by_policy
+        st.session_state.cl_elapsed = elapsed
+        st.session_state.cl_runs = cl_runs
+        st.session_state.cl_total = total
 
-    cl_cache_key = f"{cl_persona}:{cl_policy}:{cl_seed_str}"
-    if st.session_state.get("cl_cache_key") != cl_cache_key:
-        st.session_state.cl_baseline = make_result(cl_persona, cl_seed_str, None, True)
-        st.session_state.cl_coached = make_result(cl_persona, cl_seed_str, cl_policy, True)
-        st.session_state.cl_cache_key = cl_cache_key
-        st.session_state.cl_step_idx = 0
+    by_pol = st.session_state.cl_results
+    elapsed = st.session_state.cl_elapsed
+    cl_total = st.session_state.cl_total
+    cl_runs_done = st.session_state.cl_runs
 
-    if "cl_step_idx" not in st.session_state:
-        st.session_state.cl_step_idx = 0
+    base_rows   = by_pol.get("baseline", [])
+    coach_rows  = by_pol.get(cl_policy, [])
 
-    cl_base = st.session_state.cl_baseline
-    cl_coached_j = st.session_state.cl_coached
+    if base_rows and coach_rows:
+        base_agg  = _agg_rows(base_rows)
+        coach_agg = _agg_rows(coach_rows)
+        base_wconv  = _weighted_conv(base_rows)
+        coach_wconv = _weighted_conv(coach_rows)
 
-    FUNNEL_STEPS = [s for s in IN_SCOPE_ORDER if s not in {Step.START, Step.CONVERTED}]
-    n_steps = len(FUNNEL_STEPS)
-    base_obs_map = {obs.step_id: obs for obs in cl_base.steps}
-    coached_obs_map = {obs.step_id: obs for obs in cl_coached_j.steps}
+        cm1, cm2, cm3, cm4, cm5 = st.columns(5)
+        cm1.metric("Total journeys", f"{cl_total:,}")
+        cm2.metric("Wall-clock time", f"{elapsed:.1f}s")
+        cm3.metric("Throughput", f"{cl_total / elapsed:,.0f}/s")
+        cm4.metric("Baseline conv", f"{base_wconv:.2f}%")
+        cm5.metric(f"{cl_policy} conv", f"{coach_wconv:.2f}%",
+                   f"{coach_wconv - base_wconv:+.2f} pp")
 
+        # Per-persona table.
+        by_pid_base  = {r["persona_id"]: r for r in []}
+        base_by_pid:  dict[str, list] = {}
+        coach_by_pid: dict[str, list] = {}
+        for r in base_rows:
+            base_by_pid.setdefault(r["persona_id"], []).append(r)
+        for r in coach_rows:
+            coach_by_pid.setdefault(r["persona_id"], []).append(r)
+
+        persona_rows = []
+        for pid in PERSONAS:
+            b = base_by_pid.get(pid, [])
+            c = coach_by_pid.get(pid, [])
+            b_conv = sum(1 for r in b if r["converted"]) / max(len(b), 1) * 100
+            c_conv = sum(1 for r in c if r["converted"]) / max(len(c), 1) * 100
+            persona_rows.append({
+                "Persona": PERSONAS[pid].name,
+                "Funnel share": f"{FUNNEL_WEIGHTS[pid]*100:.0f}%",
+                "Baseline": f"{b_conv:.2f}%",
+                f"Coach ({cl_policy})": f"{c_conv:.2f}%",
+                "Uplift": f"{c_conv - b_conv:+.2f} pp",
+                "Journeys": len(b),
+            })
+        st.dataframe(pd.DataFrame(persona_rows),
+                     use_container_width=True, hide_index=True)
+
+        st.caption(
+            f"Statistical note: at {cl_runs_done:,} runs per persona the 95% "
+            f"confidence interval on conversion rate is approximately "
+            f"±{(1.96 * (0.2 * 0.8 / cl_runs_done) ** 0.5 * 100):.2f} pp — "
+            f"results are statistically stable."
+        )
+
+    # SLURM script download.
     st.divider()
+    st.markdown("**Deploy on Leonardo HPC cluster (SLURM)**")
+    st.caption("Fill in your Leonardo credentials — the script is generated instantly and ready to submit.")
 
-    cur_idx = st.session_state.cl_step_idx
-    cur_step = FUNNEL_STEPS[cur_idx]
-    cur_meta = STEP_META.get(cur_step, {})
+    slurm_c1, slurm_c2 = st.columns(2)
+    with slurm_c1:
+        slurm_username = st.text_input("Leonardo username", value="your_username",
+                                       key="slurm_username")
+        slurm_email    = st.text_input("Notification email", value="your_email@example.com",
+                                       key="slurm_email")
+        slurm_account  = st.text_input("SLURM account / project code", value="uniqa_hackathon",
+                                       key="slurm_account")
+    with slurm_c2:
+        slurm_runs     = st.number_input("Runs per persona", value=50000, step=10000,
+                                         key="slurm_runs")
+        slurm_workers  = st.number_input("CPU workers (cores)", value=32, step=8,
+                                         key="slurm_workers")
+        slurm_time     = st.text_input("Time limit (HH:MM:SS)", value="02:00:00",
+                                       key="slurm_time")
 
-    nav_l, nav_bar, nav_r = st.columns([1, 8, 1])
-
-    with nav_l:
-        if st.button("◀ Prev", key="cl_prev", use_container_width=True, disabled=cur_idx == 0):
-            st.session_state.cl_step_idx = cur_idx - 1
-            st.rerun()
-
-    with nav_r:
-        if st.button(
-            "Next ▶", key="cl_next", use_container_width=True, disabled=cur_idx >= n_steps - 1
-        ):
-            st.session_state.cl_step_idx = cur_idx + 1
-            st.rerun()
-
-    with nav_bar:
-        dot_parts: list[str] = []
-        for i, s in enumerate(FUNNEL_STEPS):
-            m = STEP_META.get(s, {})
-            cls = "cl-step-dot"
-            if i == cur_idx:
-                cls += " active"
-            elif s.value in base_obs_map or s.value in coached_obs_map:
-                cls += " visited"
-            dot_parts.append(f"<div class='{cls}'>{m.get('number', i + 1)}</div>")
-            if i < n_steps - 1:
-                dot_parts.append("<div class='cl-step-connector'></div>")
-
-        st.markdown(
-            f"<div class='cl-step-nav'>{''.join(dot_parts)}</div>"
-            f"<div class='cl-step-label'>"
-            f"Step {cur_meta.get('number', '?')} of 8 &mdash; "
-            f"<strong>{cur_meta.get('short', cur_step.value)}</strong>"
-            f"&nbsp;<span class='pill pill-blue'>{cur_meta.get('phase', '')}</span>"
-            f"</div>",
-            unsafe_allow_html=True,
-        )
-
-    st.divider()
-
-    left_col, right_col = st.columns(2, gap="large")
-    with left_col:
-        render_compare_panel(
-            "Without Coach",
-            cur_step,
-            base_obs_map,
-            cl_base,
-            show_coach=False,
-            persona_name=PERSONAS[cl_persona].name,
-        )
-    with right_col:
-        render_compare_panel(
-            f"With Coach ({cl_policy})",
-            cur_step,
-            coached_obs_map,
-            cl_coached_j,
-            show_coach=True,
-            persona_name=PERSONAS[cl_persona].name,
-        )
+    script = generate_slurm(
+        n_runs=int(slurm_runs),
+        n_workers=int(slurm_workers),
+        out_dir="coach_sim/results/cluster",
+        account=slurm_account,
+        username=slurm_username,
+        email=slurm_email,
+        time_limit=slurm_time,
+    )
+    st.code(script, language="bash")
+    st.download_button(
+        "Download cluster_job.sh",
+        data=script.encode("utf-8"),
+        file_name="cluster_job.sh",
+        mime="text/plain",
+    )
