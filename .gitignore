@@ -17,3 +17,4 @@ demo-artifacts/
 coach_sim/results/
 *.log
 .DS_Store
+AGENTS.md

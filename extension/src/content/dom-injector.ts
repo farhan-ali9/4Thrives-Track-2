@@ -1,4 +1,4 @@
-import type { CoachAction, CoachPlacement, ResolvedStep } from "@/shared/contracts";
+import type { ChatMessage, CoachAction, CoachPlacement, ResolvedStep } from "@/shared/contracts";
 import { queryFirst } from "@/shared/page-map";
 
 const ROOT_ID = "uniqa-conversion-coach-root";
@@ -88,6 +88,192 @@ const STYLES = `
     color: rgba(255, 255, 255, 0.78);
     text-decoration: underline;
   }
+
+  .chat-dock {
+    bottom: 22px;
+    pointer-events: auto;
+    position: fixed;
+    right: 22px;
+    z-index: 2147483647;
+  }
+
+  .chat-launcher {
+    align-items: center;
+    appearance: none;
+    background: #07163a;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 999px;
+    box-shadow: 0 14px 34px rgba(7, 22, 58, 0.28);
+    color: #ffffff;
+    cursor: pointer;
+    display: flex;
+    font: inherit;
+    font-size: 22px;
+    font-weight: 800;
+    height: 58px;
+    justify-content: center;
+    width: 58px;
+  }
+
+  .chat-panel {
+    background: #ffffff;
+    border: 1px solid rgba(7, 22, 58, 0.12);
+    border-radius: 16px;
+    box-shadow: 0 22px 58px rgba(7, 22, 58, 0.28);
+    color: #10203d;
+    display: flex;
+    flex-direction: column;
+    height: min(560px, calc(100vh - 48px));
+    overflow: hidden;
+    width: min(420px, calc(100vw - 32px));
+  }
+
+  .chat-header {
+    align-items: center;
+    background: #07163a;
+    color: #ffffff;
+    display: flex;
+    gap: 10px;
+    justify-content: space-between;
+    padding: 13px 14px;
+  }
+
+  .chat-heading {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .chat-title {
+    font-size: 14px;
+    font-weight: 800;
+  }
+
+  .chat-subtitle {
+    color: rgba(255, 255, 255, 0.74);
+    font-size: 11px;
+  }
+
+  .chat-close {
+    appearance: none;
+    background: rgba(255, 255, 255, 0.12);
+    border: 0;
+    border-radius: 999px;
+    color: #ffffff;
+    cursor: pointer;
+    font: inherit;
+    height: 30px;
+    width: 30px;
+  }
+
+  .chat-messages {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+    padding: 14px;
+  }
+
+  .chat-message {
+    border-radius: 13px;
+    font-size: 13px;
+    line-height: 1.42;
+    max-width: 86%;
+    padding: 9px 11px;
+    white-space: pre-wrap;
+  }
+
+  .chat-message.assistant {
+    align-self: flex-start;
+    background: #eef4fb;
+    color: #10203d;
+  }
+
+  .chat-message.user {
+    align-self: flex-end;
+    background: #0f6bb3;
+    color: #ffffff;
+  }
+
+  .chat-key {
+    border-top: 1px solid #e5edf6;
+    display: grid;
+    gap: 7px;
+    padding: 10px 12px 0;
+  }
+
+  .chat-key input {
+    border: 1px solid #ccd8e6;
+    border-radius: 10px;
+    box-sizing: border-box;
+    color: #10203d;
+    font: inherit;
+    font-size: 12px;
+    padding: 9px 10px;
+    width: 100%;
+  }
+
+  .chat-model {
+    border-top: 1px solid #e5edf6;
+    display: grid;
+    gap: 6px;
+    padding: 10px 12px 0;
+  }
+
+  .chat-model label {
+    color: #5c6a80;
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .chat-model select {
+    background: #ffffff;
+    border: 1px solid #ccd8e6;
+    border-radius: 10px;
+    box-sizing: border-box;
+    color: #10203d;
+    font: inherit;
+    font-size: 12px;
+    padding: 8px 10px;
+    width: 100%;
+  }
+
+  .chat-form {
+    align-items: flex-end;
+    display: grid;
+    gap: 8px;
+    grid-template-columns: 1fr auto;
+    padding: 10px 12px 12px;
+  }
+
+  .chat-input {
+    border: 1px solid #ccd8e6;
+    border-radius: 12px;
+    box-sizing: border-box;
+    color: #10203d;
+    font: inherit;
+    font-size: 13px;
+    max-height: 110px;
+    min-height: 42px;
+    padding: 10px 11px;
+    resize: vertical;
+    width: 100%;
+  }
+
+  .chat-send {
+    appearance: none;
+    background: #07163a;
+    border: 0;
+    border-radius: 12px;
+    color: #ffffff;
+    cursor: pointer;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 800;
+    min-height: 42px;
+    padding: 0 14px;
+  }
 `;
 
 export interface CoachInteraction {
@@ -95,15 +281,37 @@ export interface CoachInteraction {
   type: "coach_cta" | "coach_dismiss";
 }
 
+export interface ChatRequest {
+  apiKey?: string;
+  messages: ChatMessage[];
+  model: string;
+}
+
 export class DomInjector {
   private readonly host: HTMLDivElement;
   private readonly shadowRootRef: ShadowRoot;
   private readonly layer: HTMLDivElement;
+  private readonly chatDock: HTMLDivElement;
+  private readonly chatMessages: ChatMessage[] = [
+    {
+      role: "assistant",
+      content: "Hi, I can help with the current UNIQA calculator step. Ask about tariffs, price changes, or what to choose next.",
+    },
+  ];
   private currentStep: ResolvedStep | null = null;
   private activeActions = new Map<string, CoachAction>();
   private impressed = new Set<string>();
+  private chatOpen = false;
+  private chatLoading = false;
+  private selectedChatModel = this.chatModel;
 
-  constructor(private readonly onInteraction: (interaction: CoachInteraction) => void) {
+  constructor(
+    private readonly onInteraction: (interaction: CoachInteraction) => void,
+    private readonly onChatRequest: (request: ChatRequest) => Promise<ChatMessage>,
+    private readonly hasConfiguredChatApiKey = false,
+    private readonly chatModel = "unknown model",
+    private readonly chatModelOptions = [chatModel],
+  ) {
     this.host = document.createElement("div");
     this.host.id = ROOT_ID;
     this.shadowRootRef = this.host.attachShadow({ mode: "open" });
@@ -111,8 +319,11 @@ export class DomInjector {
     style.textContent = STYLES;
     this.layer = document.createElement("div");
     this.layer.className = "layer";
-    this.shadowRootRef.append(style, this.layer);
+    this.chatDock = document.createElement("div");
+    this.chatDock.className = "chat-dock";
+    this.shadowRootRef.append(style, this.layer, this.chatDock);
     document.body.appendChild(this.host);
+    this.renderChat();
 
     window.addEventListener("scroll", this.reposition, { passive: true });
     window.addEventListener("resize", this.reposition);
@@ -193,6 +404,147 @@ export class DomInjector {
 
     card.append(eyebrow, title, body, actions);
     return card;
+  }
+
+  private renderChat(): void {
+    this.chatDock.replaceChildren();
+
+    if (!this.chatOpen) {
+      const launcher = document.createElement("button");
+      launcher.className = "chat-launcher";
+      launcher.type = "button";
+      launcher.textContent = "?";
+      launcher.title = "Open UNIQA Coach chat";
+      launcher.addEventListener("click", () => {
+        this.chatOpen = true;
+        this.renderChat();
+      });
+      this.chatDock.appendChild(launcher);
+      return;
+    }
+
+    const panel = document.createElement("section");
+    panel.className = "chat-panel";
+
+    const header = document.createElement("div");
+    header.className = "chat-header";
+
+    const heading = document.createElement("div");
+    heading.className = "chat-heading";
+    const title = document.createElement("strong");
+    title.className = "chat-title";
+    title.textContent = "UNIQA Coach Chat";
+    const subtitle = document.createElement("span");
+    subtitle.className = "chat-subtitle";
+    subtitle.textContent = `Featherless · ${this.selectedChatModel}`;
+    heading.append(title, subtitle);
+
+    const close = document.createElement("button");
+    close.className = "chat-close";
+    close.type = "button";
+    close.textContent = "x";
+    close.addEventListener("click", () => {
+      this.chatOpen = false;
+      this.renderChat();
+    });
+    header.append(heading, close);
+
+    const messages = document.createElement("div");
+    messages.className = "chat-messages";
+    for (const message of this.chatMessages) {
+      const bubble = document.createElement("div");
+      bubble.className = `chat-message ${message.role}`;
+      bubble.textContent = message.content;
+      messages.appendChild(bubble);
+    }
+    if (this.chatLoading) {
+      const bubble = document.createElement("div");
+      bubble.className = "chat-message assistant";
+      bubble.textContent = "Thinking...";
+      messages.appendChild(bubble);
+    }
+
+    const keyWrap = document.createElement("div");
+    keyWrap.className = "chat-key";
+    const keyInput = document.createElement("input");
+    keyInput.autocomplete = "off";
+    keyInput.placeholder = "Featherless API key (saved locally after first send)";
+    keyInput.type = "password";
+    if (!this.hasConfiguredChatApiKey) {
+      keyWrap.appendChild(keyInput);
+    }
+
+    const modelWrap = document.createElement("div");
+    modelWrap.className = "chat-model";
+    const modelLabel = document.createElement("label");
+    modelLabel.textContent = "Model";
+    const modelSelect = document.createElement("select");
+    for (const model of this.normalizedModelOptions()) {
+      const option = document.createElement("option");
+      option.value = model;
+      option.textContent = model;
+      option.selected = model === this.selectedChatModel;
+      modelSelect.appendChild(option);
+    }
+    modelSelect.addEventListener("change", () => {
+      this.selectedChatModel = modelSelect.value;
+      this.renderChat();
+    });
+    modelWrap.append(modelLabel, modelSelect);
+
+    const form = document.createElement("form");
+    form.className = "chat-form";
+    const input = document.createElement("textarea");
+    input.className = "chat-input";
+    input.placeholder = "Ask the coach...";
+    input.rows = 2;
+    const send = document.createElement("button");
+    send.className = "chat-send";
+    send.disabled = this.chatLoading;
+    send.textContent = this.chatLoading ? "..." : "Send";
+    send.type = "submit";
+    form.append(input, send);
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void this.submitChat(input.value, keyInput.value);
+    });
+
+    if (keyWrap.childElementCount > 0) {
+      panel.append(header, messages, modelWrap, keyWrap, form);
+    } else {
+      panel.append(header, messages, modelWrap, form);
+    }
+    this.chatDock.appendChild(panel);
+    messages.scrollTop = messages.scrollHeight;
+    input.focus();
+  }
+
+  private async submitChat(rawMessage: string, rawApiKey: string): Promise<void> {
+    const content = rawMessage.trim();
+    const apiKey = rawApiKey.trim();
+    if (!content || this.chatLoading) {
+      return;
+    }
+
+    this.chatMessages.push({ role: "user", content });
+    this.chatLoading = true;
+    this.renderChat();
+
+    const reply = await this.onChatRequest({
+      apiKey: apiKey || undefined,
+      messages: [...this.chatMessages],
+      model: this.selectedChatModel,
+    });
+    this.chatMessages.push(reply);
+    this.chatLoading = false;
+    this.renderChat();
+  }
+
+  private normalizedModelOptions(): string[] {
+    const options = [this.chatModel, ...this.chatModelOptions]
+      .map((model) => model.trim())
+      .filter(Boolean);
+    return [...new Set(options)];
   }
 
   private readonly reposition = (): void => {

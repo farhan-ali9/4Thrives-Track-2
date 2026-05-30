@@ -59,6 +59,15 @@ WINNING_DEMO_SEEDS = {
     "peter": "peter:demo:7",
 }
 
+STEP_ASSETS: dict[str, Path] = {
+    "s1_coverage_scope": ROOT / "assets/s1_coverage_scope/image.png",
+    "s2_for_whom":        ROOT / "assets/s2_for_whom/image copy.png",
+    "s3_personal_data":   ROOT / "assets/s3_personal_data/image copy 2.png",
+    "s4_initial_price":   ROOT / "assets/s4_initial_price/image copy 4.png",
+    "s5_add_ons":         ROOT / "assets/s5_add_ons/image copy 6.png",
+    "s6_health_questions":ROOT / "assets/s6_health_questions/image.png",
+}
+
 st.markdown(
     f"""
     <style>
@@ -200,6 +209,102 @@ st.markdown(
         .price-grid {{ grid-template-columns: 1fr; }}
         .llm-grid {{ grid-template-columns: 1fr; }}
       }}
+      /* ── Compare Live ──────────────────────────────────── */
+      .cl-step-nav {{
+        display:flex; align-items:center; justify-content:center; gap:0; padding:10px 0;
+      }}
+      .cl-step-dot {{
+        width:34px; height:34px; border-radius:50%; background:#DCE5F0; color:{MUTED};
+        font-size:.72rem; font-weight:800; display:flex; align-items:center;
+        justify-content:center; flex-shrink:0;
+      }}
+      .cl-step-dot.visited {{ background:#E3F3FC; color:{BLUE}; }}
+      .cl-step-dot.active  {{
+        background:{BLUE}; color:white;
+        box-shadow:0 2px 8px rgba(0,61,122,.3); transform:scale(1.15);
+      }}
+      .cl-step-connector {{ flex:1; height:2px; background:#DCE5F0; max-width:40px; min-width:6px; }}
+      .cl-step-label {{
+        text-align:center; color:{BLUE}; font-weight:760; font-size:.9rem; margin-top:6px;
+      }}
+      .cl-panel-title {{ font-size:1rem; font-weight:760; color:{BLUE}; margin-bottom:8px; }}
+      .cl-persona-state {{
+        background:white; border:1px solid {LINE}; border-radius:8px;
+        padding:10px 12px; margin-top:8px;
+      }}
+      .cl-persona-row {{ display:flex; align-items:center; gap:8px; margin-bottom:4px; }}
+      .cl-persona-label {{ color:{MUTED}; font-size:.76rem; font-weight:700; min-width:96px; }}
+      .cl-persona-value {{ color:{INK}; font-weight:700; }}
+      .cl-signals {{ margin-top:6px; }}
+      .cl-coach-popup {{
+        background:linear-gradient(135deg,#F0FFF7,#E8FAF1);
+        border:1px solid {GREEN}; border-left:4px solid {GREEN};
+        border-radius:8px; padding:12px 14px; margin-top:10px;
+      }}
+      .cl-coach-popup.miss {{
+        background:linear-gradient(135deg,#FFF7F7,#FFF0F0);
+        border-color:{RED}; border-left-color:{RED};
+      }}
+      .cl-coach-header {{ color:{BLUE}; font-weight:760; font-size:.9rem; margin-bottom:6px; }}
+      .cl-coach-copy {{ color:{INK}; font-size:.88rem; line-height:1.4; font-style:italic; }}
+      .cl-coach-why {{ color:{MUTED}; font-size:.76rem; margin-top:6px; }}
+      .cl-not-reached {{
+        background:#F5F8FC; border:1px dashed {LINE}; border-radius:8px;
+        padding:20px; text-align:center; color:{MUTED}; font-size:.85rem; margin-top:8px;
+      }}
+      /* UNIQA Mockup pages (S7, S8) */
+      .uniqa-mock {{
+        background:white; border-radius:8px; border:1px solid {LINE};
+        overflow:hidden; font-family:Arial,Helvetica,sans-serif;
+      }}
+      .uniqa-mock-header {{
+        background:#E2001A; padding:12px 18px;
+        display:flex; align-items:center; gap:14px;
+      }}
+      .uniqa-mock-logo {{ color:white; font-weight:900; font-size:1.2rem; letter-spacing:1px; }}
+      .uniqa-mock-title {{ color:rgba(255,255,255,.85); font-size:.82rem; }}
+      .uniqa-mock-steps {{
+        background:#F8F8F8; border-bottom:1px solid #E8E8E8;
+        padding:10px 18px; display:flex; align-items:center; gap:0;
+      }}
+      .uniqa-mock-step-dot {{
+        width:24px; height:24px; border-radius:50%; background:#DCE0E8;
+        color:#999; font-size:.6rem; font-weight:800;
+        display:flex; align-items:center; justify-content:center; flex-shrink:0;
+      }}
+      .uniqa-mock-step-dot.done  {{ background:#2EAD6B; color:white; }}
+      .uniqa-mock-step-dot.active {{ background:#E2001A; color:white; }}
+      .uniqa-mock-step-line {{ flex:1; height:2px; background:#DCE0E8; max-width:28px; min-width:4px; }}
+      .uniqa-mock-body {{ padding:20px 24px; }}
+      .uniqa-mock-h2 {{ color:#1A1A1A; font-size:1.1rem; font-weight:700; margin-bottom:4px; }}
+      .uniqa-mock-sub {{ color:#666; font-size:.8rem; margin-bottom:16px; }}
+      .uniqa-price-card {{
+        border:2px solid #DCE0E8; border-radius:8px; padding:14px 16px; margin-bottom:10px;
+      }}
+      .uniqa-price-card.selected {{ border-color:#E2001A; background:#FFF9F9; }}
+      .uniqa-tariff-badge {{
+        display:inline-block; background:#E2001A; color:white;
+        font-size:.6rem; font-weight:800; border-radius:3px;
+        padding:2px 7px; letter-spacing:.6px; margin-bottom:4px;
+      }}
+      .uniqa-tariff-price {{ font-size:1.3rem; font-weight:800; color:#E2001A; margin:4px 0 2px 0; }}
+      .uniqa-tariff-delta {{ font-size:.74rem; color:#888; }}
+      .uniqa-notice {{
+        background:#EFF4FF; border-left:3px solid {BLUE}; border-radius:4px;
+        padding:10px 12px; color:#333; font-size:.78rem; margin:12px 0;
+      }}
+      .uniqa-btn {{
+        display:block; background:#E2001A; color:white; border:none; border-radius:4px;
+        padding:12px 24px; font-weight:700; font-size:.88rem; width:100%;
+        margin-top:12px; text-align:center; cursor:pointer;
+      }}
+      .uniqa-summary-row {{
+        display:flex; justify-content:space-between; padding:9px 0;
+        border-bottom:1px solid #F0F0F0; font-size:.85rem;
+      }}
+      .uniqa-summary-key {{ color:#666; }}
+      .uniqa-summary-val {{ font-weight:700; color:#1A1A1A; }}
+      .uniqa-checkbox-row {{ margin:8px 0; font-size:.8rem; color:#444; }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -381,6 +486,175 @@ def aggregate_weighted(results: list[JourneyResult]):
     return weighted_from_personas(per_persona(results))
 
 
+# ── Compare Live helpers ──────────────────────────────────────────────────────
+
+def _uniqa_step_dots(active: int) -> str:
+    parts: list[str] = []
+    for i in range(1, 9):
+        if i < active:
+            cls = "uniqa-mock-step-dot done"
+        elif i == active:
+            cls = "uniqa-mock-step-dot active"
+        else:
+            cls = "uniqa-mock-step-dot"
+        parts.append(f"<div class='{cls}'>{i}</div>")
+        if i < 8:
+            parts.append("<div class='uniqa-mock-step-line'></div>")
+    return "".join(parts)
+
+
+def render_s7_html(initial: float, final: float, persona: str) -> str:
+    delta = final - initial
+    delta_txt = f"+ EUR {delta:.2f} Risikozuschlag" if delta > 0.01 else "Kein Risikozuschlag"
+    return f"""
+    <div class="uniqa-mock">
+      <div class="uniqa-mock-header">
+        <span class="uniqa-mock-logo">UNIQA</span>
+        <span class="uniqa-mock-title">Private Krankenversicherung &mdash; Online abschlie&szlig;en</span>
+      </div>
+      <div class="uniqa-mock-steps">{_uniqa_step_dots(7)}</div>
+      <div class="uniqa-mock-body">
+        <div class="uniqa-mock-h2">Ihr pers&ouml;nliches Angebot</div>
+        <div class="uniqa-mock-sub">Basierend auf Ihren Gesundheitsangaben &mdash; {persona}</div>
+        <div class="uniqa-price-card selected">
+          <div class="uniqa-tariff-badge">OPTIMAL</div>
+          <div class="uniqa-tariff-price">EUR {final:.2f} / Monat</div>
+          <div class="uniqa-tariff-delta">Grundpreis EUR {initial:.2f} &nbsp;&middot;&nbsp; {delta_txt}</div>
+        </div>
+        <div class="uniqa-notice">
+          &#8505;&#65039; Ihr Beitrag enth&auml;lt einen individuellen Risikozuschlag basierend auf
+          Ihren Gesundheitsangaben. Dieser Aufschlag ist transparent und gesetzlich geregelt.
+        </div>
+        <div class="uniqa-btn">Weiter zur Zusammenfassung &rarr;</div>
+      </div>
+    </div>
+    """
+
+
+def render_s8_html(persona: str, price: float) -> str:
+    return f"""
+    <div class="uniqa-mock">
+      <div class="uniqa-mock-header">
+        <span class="uniqa-mock-logo">UNIQA</span>
+        <span class="uniqa-mock-title">Private Krankenversicherung &mdash; Online abschlie&szlig;en</span>
+      </div>
+      <div class="uniqa-mock-steps">{_uniqa_step_dots(8)}</div>
+      <div class="uniqa-mock-body">
+        <div class="uniqa-mock-h2">Zusammenfassung &amp; Abschluss</div>
+        <div class="uniqa-mock-sub">Bitte &uuml;berpr&uuml;fen Sie Ihre Angaben vor dem Abschluss</div>
+        <div class="uniqa-summary-row">
+          <span class="uniqa-summary-key">Versicherungsnehmer</span>
+          <span class="uniqa-summary-val">{persona}</span>
+        </div>
+        <div class="uniqa-summary-row">
+          <span class="uniqa-summary-key">Produkt</span>
+          <span class="uniqa-summary-val">Private KV &ndash; Tarif Optimal</span>
+        </div>
+        <div class="uniqa-summary-row">
+          <span class="uniqa-summary-key">Monatsbeitrag</span>
+          <span class="uniqa-summary-val" style="color:#E2001A">EUR {price:.2f}</span>
+        </div>
+        <div class="uniqa-summary-row">
+          <span class="uniqa-summary-key">Versicherungsbeginn</span>
+          <span class="uniqa-summary-val">01.07.2026</span>
+        </div>
+        <div class="uniqa-checkbox-row">&#9745;&nbsp; Ich habe die AVB gelesen und stimme zu.</div>
+        <div class="uniqa-checkbox-row">&#9745;&nbsp; Ich stimme der Verarbeitung meiner Daten durch UNIQA zu.</div>
+        <div class="uniqa-btn">Versicherung jetzt abschlie&szlig;en &#10003;</div>
+      </div>
+    </div>
+    """
+
+
+def render_compare_panel(
+    title: str,
+    cur_step: Step,
+    obs_map: dict,
+    journey: JourneyResult,
+    show_coach: bool,
+    persona_name: str,
+) -> None:
+    step_id = cur_step.value
+    obs = obs_map.get(step_id)
+    outcome_label, outcome_color = status_label(journey)
+
+    st.markdown(
+        f"<div class='cl-panel-title'>{title}"
+        f"&nbsp;<span class='pill pill-{outcome_color}'>{outcome_label}</span></div>",
+        unsafe_allow_html=True,
+    )
+
+    asset_path = STEP_ASSETS.get(step_id)
+    if asset_path and asset_path.exists():
+        st.image(str(asset_path), use_container_width=True)
+    elif step_id == "s7_final_price":
+        st.markdown(
+            render_s7_html(journey.initial_price_eur, journey.final_price_eur, persona_name),
+            unsafe_allow_html=True,
+        )
+    elif step_id == "s8_confirm":
+        st.markdown(render_s8_html(persona_name, journey.final_price_eur), unsafe_allow_html=True)
+
+    if obs is None:
+        st.markdown(
+            "<div class='cl-not-reached'>Persona did not reach this step</div>",
+            unsafe_allow_html=True,
+        )
+        return
+
+    signals_html = "".join(
+        f"<span class='chip'>{getattr(sig.kind, 'value', str(sig.kind))}</span>"
+        for sig in obs.signals
+    )
+    events_html = "".join(f"<span class='chip event'>{e}</span>" for e in obs.detected_events)
+
+    if obs.action == "abandon":
+        act_color = "red"
+    elif obs.action in {"confirm", "select_optimal", "continue", "submit", "myself", "at_doctor"}:
+        act_color = "green"
+    else:
+        act_color = "blue"
+
+    dwell_warn = "&nbsp;&#9888;" if obs.dwell_seconds >= 25 else ""
+
+    st.markdown(
+        f"""
+        <div class='cl-persona-state'>
+          <div class='cl-persona-row'>
+            <span class='cl-persona-label'>Action</span>
+            <span class='pill pill-{act_color}'>{obs.action}</span>
+          </div>
+          <div class='cl-persona-row'>
+            <span class='cl-persona-label'>Time on page</span>
+            <span class='cl-persona-value'>{obs.dwell_seconds:.1f}s{dwell_warn}</span>
+          </div>
+          <div class='cl-signals'>{signals_html}{events_html}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    if show_coach and obs.intervention_shown and obs.intervention_shown != "none":
+        iv = Intervention(obs.intervention_shown)
+        accepted = obs.intervention_accepted is True
+        coach_cls = "cl-coach-popup" if accepted else "cl-coach-popup miss"
+        status_icon = "&#9989;" if accepted else "&#10060;"
+        outcome_txt = "Accepted &mdash; persona stayed online" if accepted else "Ignored &mdash; persona still hesitating"
+        st.markdown(
+            f"""
+            <div class='{coach_cls}'>
+              <div class='cl-coach-header'>
+                &#128172; Coach: {iv.value.replace("_", " ").title()}
+                &nbsp;{status_icon}&nbsp;{outcome_txt}
+              </div>
+              <div class='cl-coach-copy'>&#8220;{INTERVENTION_COPY.get(iv, '')}&#8221;</div>
+              <div class='cl-coach-why'>Why triggered: {INTERVENTION_RATIONALE.get(iv, '')}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
 st.markdown(
     """
     <div class='hero'>
@@ -412,7 +686,9 @@ with st.sidebar:
     st.caption("Baseline anchor: 5.6% online conversion, 66% Step 4 drop-off, 78% Step 7 drop-off.")
 
 
-tab_demo, tab_batch, tab_llm = st.tabs(["Live demo", "Results dashboard", "LLM persona"])
+tab_demo, tab_batch, tab_llm, tab_compare = st.tabs(
+    ["Live demo", "Results dashboard", "LLM persona", "Compare Live"]
+)
 
 with tab_demo:
     st.subheader("Live side-by-side journey")
@@ -623,3 +899,116 @@ with tab_llm:
         else:
             st.caption("No LLM reasoning trace was recorded because fallback mode handled this run.")
         st.markdown("</div>", unsafe_allow_html=True)
+
+
+with tab_compare:
+    st.subheader("Compare Live — UNIQA Funnel Walkthrough")
+    st.caption(
+        "Step through the real UNIQA health insurance calculator screens. "
+        "See how each persona behaves at every step, and how the Conversion Coach "
+        "intervenes with hints and reassurance when they're struggling."
+    )
+
+    cc1, cc2, cc3 = st.columns([1.2, 1, 1.8])
+    with cc1:
+        cl_persona = st.selectbox(
+            "Persona",
+            list(PERSONAS.keys()),
+            format_func=lambda p: f"{PERSONAS[p].name} ({int(FUNNEL_WEIGHTS[p] * 100)}%)",
+            key="cl_persona",
+        )
+    with cc2:
+        cl_policy = st.selectbox(
+            "Coach policy", ["balanced", "minimal", "aggressive"], key="cl_policy"
+        )
+    with cc3:
+        cl_mode = st.radio("Mode", ["Winning demo", "Custom seed"], key="cl_mode", horizontal=True)
+
+    if cl_mode == "Custom seed":
+        cl_seed_num = st.number_input("Seed", min_value=1, value=42, step=1, key="cl_seed_num")
+        cl_seed_str = f"{cl_persona}:{int(cl_seed_num)}:live"
+    else:
+        cl_seed_str = WINNING_DEMO_SEEDS[cl_persona]
+
+    cl_cache_key = f"{cl_persona}:{cl_policy}:{cl_seed_str}"
+    if st.session_state.get("cl_cache_key") != cl_cache_key:
+        st.session_state.cl_baseline = make_result(cl_persona, cl_seed_str, None, True)
+        st.session_state.cl_coached = make_result(cl_persona, cl_seed_str, cl_policy, True)
+        st.session_state.cl_cache_key = cl_cache_key
+        st.session_state.cl_step_idx = 0
+
+    if "cl_step_idx" not in st.session_state:
+        st.session_state.cl_step_idx = 0
+
+    cl_base = st.session_state.cl_baseline
+    cl_coached_j = st.session_state.cl_coached
+
+    FUNNEL_STEPS = [s for s in IN_SCOPE_ORDER if s not in {Step.START, Step.CONVERTED}]
+    n_steps = len(FUNNEL_STEPS)
+    base_obs_map = {obs.step_id: obs for obs in cl_base.steps}
+    coached_obs_map = {obs.step_id: obs for obs in cl_coached_j.steps}
+
+    st.divider()
+
+    cur_idx = st.session_state.cl_step_idx
+    cur_step = FUNNEL_STEPS[cur_idx]
+    cur_meta = STEP_META.get(cur_step, {})
+
+    nav_l, nav_bar, nav_r = st.columns([1, 8, 1])
+
+    with nav_l:
+        if st.button("◀ Prev", key="cl_prev", use_container_width=True, disabled=cur_idx == 0):
+            st.session_state.cl_step_idx = cur_idx - 1
+            st.rerun()
+
+    with nav_r:
+        if st.button(
+            "Next ▶", key="cl_next", use_container_width=True, disabled=cur_idx >= n_steps - 1
+        ):
+            st.session_state.cl_step_idx = cur_idx + 1
+            st.rerun()
+
+    with nav_bar:
+        dot_parts: list[str] = []
+        for i, s in enumerate(FUNNEL_STEPS):
+            m = STEP_META.get(s, {})
+            cls = "cl-step-dot"
+            if i == cur_idx:
+                cls += " active"
+            elif s.value in base_obs_map or s.value in coached_obs_map:
+                cls += " visited"
+            dot_parts.append(f"<div class='{cls}'>{m.get('number', i + 1)}</div>")
+            if i < n_steps - 1:
+                dot_parts.append("<div class='cl-step-connector'></div>")
+
+        st.markdown(
+            f"<div class='cl-step-nav'>{''.join(dot_parts)}</div>"
+            f"<div class='cl-step-label'>"
+            f"Step {cur_meta.get('number', '?')} of 8 &mdash; "
+            f"<strong>{cur_meta.get('short', cur_step.value)}</strong>"
+            f"&nbsp;<span class='pill pill-blue'>{cur_meta.get('phase', '')}</span>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+    st.divider()
+
+    left_col, right_col = st.columns(2, gap="large")
+    with left_col:
+        render_compare_panel(
+            "Without Coach",
+            cur_step,
+            base_obs_map,
+            cl_base,
+            show_coach=False,
+            persona_name=PERSONAS[cl_persona].name,
+        )
+    with right_col:
+        render_compare_panel(
+            f"With Coach ({cl_policy})",
+            cur_step,
+            coached_obs_map,
+            cl_coached_j,
+            show_coach=True,
+            persona_name=PERSONAS[cl_persona].name,
+        )

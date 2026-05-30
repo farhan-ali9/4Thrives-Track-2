@@ -168,10 +168,34 @@ export interface CoachRuntimeState {
 }
 
 export interface RuntimeInitResponse {
+  hasChatApiKey: boolean;
+  chatModel: string;
+  chatModelOptions: string[];
   sessionId: string;
 }
 
 export interface RuntimeEventResponse {
   actions: CoachAction[];
   signals: SignalKind[];
+}
+
+export type ChatRole = "user" | "assistant";
+
+export interface ChatMessage {
+  role: ChatRole;
+  content: string;
+}
+
+export interface RuntimeChatRequest {
+  apiKey?: string;
+  context: DerivedContext;
+  messages: ChatMessage[];
+  model?: string;
+  pageStepId: string | null;
+  sessionId: string;
+}
+
+export interface RuntimeChatResponse {
+  message: ChatMessage;
+  error?: string;
 }
