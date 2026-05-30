@@ -13,7 +13,7 @@ services:
       retries: 10
       start_period: 5s
     ports:
-      - "5432:5432"
+      - "5433:5432"
     restart: unless-stopped
     volumes:
       - coach-db-data:/var/lib/postgresql/data
