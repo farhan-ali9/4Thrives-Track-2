@@ -16,7 +16,7 @@ import { UniqaStorage } from "./storage";
 const DEFAULT_API_STATUS: CoachApiStatus = {
   endpoint:
     (import.meta.env?.VITE_COACH_API_ORIGIN ?? "http://127.0.0.1:8787").replace(/\/+$/, "") +
-    "/api/v1/coach/evaluate",
+    "/api/v2/events",
   lastUpdatedAt: 0,
   message: "Waiting for first coach API call",
   policyVersion: null,
@@ -24,34 +24,63 @@ const DEFAULT_API_STATUS: CoachApiStatus = {
 };
 
 export class UniqaEventOrchestrator {
+  private readonly sessionQueues = new Map<string, Promise<void>>();
+
   constructor(
     private readonly storage: UniqaStorage,
     private readonly coachClient: CoachClient,
   ) {}
 
   async handleEvent(event: NormalizedEvent): Promise<RuntimeEventResponse> {
-    await this.storage.appendEvent(event.sessionId, event);
-    const recentEvents = await this.storage.getRecentEvents(event.sessionId);
-    const updatedStepState = await this.updateStepState(event);
-    const signals = deriveSignals(event, updatedStepState, recentEvents);
+    return this.runSequentially(event.sessionId, async () => {
+      await this.storage.appendEvent(event.sessionId, event);
+      const recentEvents = await this.storage.getRecentEvents(event.sessionId);
+      const updatedStepState = await this.updateStepState(event);
+      const signals = deriveSignals(event, updatedStepState, recentEvents);
 
-    if (!shouldEvaluateCoach(event, signals)) {
-      return { actions: [], apiStatus: DEFAULT_API_STATUS, signals };
+      if (!shouldEvaluateCoach(event, signals)) {
+        return { actions: [], apiStatus: DEFAULT_API_STATUS, signals };
+      }
+
+      const coachRequest = this.buildCoachRequest(event, recentEvents, updatedStepState, signals);
+      const evaluation = await this.coachClient.evaluate({
+        event,
+        fallbackRequest: coachRequest,
+        signals,
+      });
+      const actions = await this.filterActionsByCooldown(
+        event.sessionId,
+        event.ts,
+        evaluation.response.actions,
+      );
+
+      return {
+        actions,
+        apiStatus: evaluation.apiStatus,
+        signals,
+      };
+    });
+  }
+
+  private async runSequentially<T>(sessionId: string, task: () => Promise<T>): Promise<T> {
+    const previous = this.sessionQueues.get(sessionId) ?? Promise.resolve();
+    let releaseQueue: (() => void) | null = null;
+    const current = new Promise<void>((resolve) => {
+      releaseQueue = resolve;
+    });
+    const queue = previous.then(() => current);
+
+    this.sessionQueues.set(sessionId, queue);
+    await previous;
+
+    try {
+      return await task();
+    } finally {
+      releaseQueue?.();
+      if (this.sessionQueues.get(sessionId) === queue) {
+        this.sessionQueues.delete(sessionId);
+      }
     }
-
-    const coachRequest = this.buildCoachRequest(event, recentEvents, updatedStepState, signals);
-    const evaluation = await this.coachClient.evaluate(coachRequest);
-    const actions = await this.filterActionsByCooldown(
-      event.sessionId,
-      event.ts,
-      evaluation.response.actions,
-    );
-
-    return {
-      actions,
-      apiStatus: evaluation.apiStatus,
-      signals,
-    };
   }
 
   private async updateStepState(event: NormalizedEvent): Promise<StepRuntimeState> {

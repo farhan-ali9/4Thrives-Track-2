@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="de">
+  <body>
+    <div>Bisherige Versicherungen</div>
+    <div>Sind Sie oder waren Sie in den letzten 7 Jahren privat krankenversichert?</div>
+    <div data-cy="insuranceInPast7Years">
+      <label>
+        <input type="radio" name="insuranceInPast7Years" />
+        ja
+      </label>
+      <label>
+        <input type="radio" name="insuranceInPast7Years" checked="checked" />
+        nein
+      </label>
+    </div>
+    <div>Wurden Anträge abgelehnt oder Verträge durch den Versicherer gekündigt?</div>
+    <div data-cy="rejectedApplication">
+      <label>
+        <input type="radio" name="rejectedApplication" />
+        ja
+      </label>
+      <label>
+        <input type="radio" name="rejectedApplication" checked="checked" />
+        nein
+      </label>
+    </div>
+    <div>Unser Angebot 73,02 EUR/Monat</div>
+    <button data-cy="nextStepButton">Weiter</button>
+    <button data-cy="backButton">Zurück</button>
+  </body>
+</html>
