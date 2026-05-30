@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "browser-runner"))
@@ -26,6 +27,37 @@ class MockRunnerTests(unittest.TestCase):
             self.assertIn(trace["terminal_outcome"], {"converted_online", "abandoned", "advisor_handoff"})
             path = module.write_trace(trace, tmp_path)
             self.assertTrue(path.exists())
+
+    def test_out_of_scope_live_elements_end_as_advisor_handoff(self):
+        for element_key in ("hospital", "both", "other_persons"):
+            self.assertEqual(module._terminal_outcome_for_element(element_key), "advisor_handoff")
+        self.assertIsNone(module._terminal_outcome_for_element("at_doctor"))
+        self.assertIsNone(module._terminal_outcome_for_element("opt_plus"))
+        self.assertIsNone(module._terminal_outcome_for_element("premium"))
+
+    def test_coach_interaction_mode_is_deterministic(self):
+        decision = module.PersonaDecision(
+            step_id="s4_initial_price",
+            action="select_optimal",
+            reasoning="test",
+            dwell_ms=900,
+            llm_model="test",
+            latency_ms=0,
+            fallback_used=True,
+            prompt_hash="stable_hash",
+            candidate_set=[],
+            overlay=SimpleNamespace(
+                price_sensitivity=1,
+                trust_friction=1,
+                privacy_friction=1,
+                impatience=1,
+                tariff_curiosity=1,
+                coach_receptiveness=1.25,
+            ),
+            step_context={},
+        )
+
+        self.assertEqual(module._coach_interaction_mode(decision), "cta")
 
 
 if __name__ == "__main__":

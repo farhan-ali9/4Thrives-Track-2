@@ -192,7 +192,7 @@ describe("applyHardGuardrails", () => {
     expect(result.guardrail).toBe("out_of_scope_advisor_insured_person");
   });
 
-  test("Opt. Plus tariff routes to advisor_handoff", () => {
+  test("Opt. Plus tariff allows a recovery nudge", () => {
     const result = applyHardGuardrails({
       selectedTariff: "opt_plus",
       coverage: null,
@@ -200,11 +200,12 @@ describe("applyHardGuardrails", () => {
       hasOosPathSignal: false,
     });
 
-    expect(result.outcome).toBe("advisor_handoff");
-    expect(result.guardrail).toBe("out_of_scope_advisor_tariff");
+    expect(result.outcome).toBe("online");
+    expect(result.guardrail).toBe("out_of_scope_tariff_recovery");
+    expect(result.allowedActions).toContain("tariff_route_explainer");
   });
 
-  test("Premium tariff routes to advisor_handoff", () => {
+  test("Premium tariff allows a recovery nudge", () => {
     const result = applyHardGuardrails({
       selectedTariff: "premium",
       coverage: null,
@@ -212,8 +213,9 @@ describe("applyHardGuardrails", () => {
       hasOosPathSignal: false,
     });
 
-    expect(result.outcome).toBe("advisor_handoff");
-    expect(result.guardrail).toBe("out_of_scope_advisor_tariff");
+    expect(result.outcome).toBe("online");
+    expect(result.guardrail).toBe("out_of_scope_tariff_recovery");
+    expect(result.allowedActions).toContain("tariff_route_explainer");
   });
 
   test("oos_path signal routes to advisor_handoff", () => {
@@ -325,7 +327,7 @@ describe("POST /api/v2/events guardrail integration", () => {
     await app.close();
   });
 
-  test("Opt. Plus in derived_context triggers advisor_handoff action", async () => {
+  test("Opt. Plus in derived_context triggers tariff recovery action", async () => {
     const app = await createApp({ config: makeConfig(), repository });
 
     const res = await app.inject({
@@ -338,12 +340,12 @@ describe("POST /api/v2/events guardrail integration", () => {
     });
 
     const body = res.json();
-    expect(body.actions[0]?.kind).toBe("advisor_handoff");
+    expect(body.actions[0]?.kind).toBe("tariff_route_explainer");
 
     await app.close();
   });
 
-  test("Premium in derived_context triggers advisor_handoff action", async () => {
+  test("Premium in derived_context triggers tariff recovery action", async () => {
     const app = await createApp({ config: makeConfig(), repository });
 
     const res = await app.inject({
@@ -356,7 +358,7 @@ describe("POST /api/v2/events guardrail integration", () => {
     });
 
     const body = res.json();
-    expect(body.actions[0]?.kind).toBe("advisor_handoff");
+    expect(body.actions[0]?.kind).toBe("tariff_route_explainer");
 
     await app.close();
   });

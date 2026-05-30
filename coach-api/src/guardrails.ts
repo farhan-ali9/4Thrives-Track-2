@@ -1,6 +1,7 @@
 // Hard deterministic guardrails — not part of the trainable policy.
 // These rules must fire regardless of what the policy engine says.
-// Out-of-scope paths get advisor_handoff. Period.
+// Out-of-scope paths get advisor_handoff. Advisor-only tariff clicks get one
+// recovery nudge back to online-completable tariffs before handoff.
 
 export type GuardrailOutcome = "advisor_handoff" | "online";
 
@@ -25,6 +26,7 @@ const COACHING_ACTIONS = [
   "market_comparison",
   "price_gap_transparency",
   "tariff_route_explainer",
+  "save_progress",
 ];
 
 const OOS_TARIFFS = new Set(["opt_plus", "opt. plus", "optplus", "premium"]);
@@ -59,10 +61,12 @@ export function applyHardGuardrails(state: {
 
   if (state.selectedTariff && OOS_TARIFFS.has(normalize(state.selectedTariff))) {
     return {
-      guardrail: "out_of_scope_advisor_tariff",
-      outcome: "advisor_handoff",
-      allowedActions: allowed,
-      blockedActions: COACHING_ACTIONS,
+      guardrail: "out_of_scope_tariff_recovery",
+      outcome: "online",
+      allowedActions: ["tariff_route_explainer", "advisor_handoff"],
+      blockedActions: COACHING_ACTIONS.filter(
+        (action) => action !== "tariff_route_explainer",
+      ),
     };
   }
 

@@ -25,13 +25,6 @@ LLM_MODEL=Qwen/Qwen2.5-7B-Instruct
 COACH_API_URL=http://127.0.0.1:8787
 ```
 
-For the deployed coach API, use:
-
-```bash
-VITE_COACH_API_ORIGIN=https://coach-api-42il2.ondigitalocean.app/
-COACH_API_URL=https://coach-api-42il2.ondigitalocean.app/
-```
-
 Optional but recommended for Featherless attribution:
 
 ```bash
@@ -71,7 +64,7 @@ Coach validation:
 bash scripts/run_local_validation.sh coach 12
 ```
 
-These commands load `.env`, rebuild the extension for coach mode, and fail fast if the configured coach API is not healthy.
+These commands source `.env`, rebuild the extension for coach mode, and fail fast if the local coach API is not healthy.
 
 ## 5. Run Bulk Collection
 
@@ -178,6 +171,6 @@ artifacts/evaluation-experiments/<experiment-prefix>
 
 ## Notes
 
-- Coach mode requires a built `extension/dist` and a reachable coach API, either local or deployed.
+- Coach mode requires a built `extension/dist` and a running coach API.
 - The live runner never submits the final purchase. `s8_confirm` remains an observation boundary.
 - Featherless is OpenAI-compatible at `https://api.featherless.ai/v1/chat/completions`, and its model catalog is available via `GET https://api.featherless.ai/v1/models`.

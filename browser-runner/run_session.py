@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -207,6 +208,102 @@ def _append_baseline_event(
     )
 
 
+def _click_next(page: Any) -> None:
+    button = page.locator("[data-cy='nextStepButton']")
+    if button.count() > 0:
+        button.first.click()
+        return
+    page.get_by_role("button", name="Weiter").click()
+
+
+def _coach_overlay_text(page: Any) -> str:
+    return page.evaluate(
+        """
+        () => {
+          const shadow = document.querySelector("#uniqa-conversion-coach-root")?.shadowRoot;
+          const target = shadow?.querySelector(".cta, .dismiss");
+          if (!target) return "";
+          return shadow?.textContent?.trim() || "";
+        }
+        """
+    )
+
+
+def _wait_for_coach_overlay(page: Any, *, timeout_ms: int, settle_ms: int = 0) -> bool:
+    if timeout_ms <= 0:
+        return False
+    started = time.time()
+    while (time.time() - started) * 1000 < timeout_ms:
+        try:
+            if _coach_overlay_text(page):
+                if settle_ms > 0:
+                    page.wait_for_timeout(settle_ms)
+                return True
+        except Exception:
+            return False
+        page.wait_for_timeout(150)
+    return False
+
+
+def _post_action_settle(page: Any, safety: RunnerSafetyConfig, *, coach_mode: bool) -> None:
+    delay_ms = safety.post_action_settle_ms if coach_mode else min(350, safety.post_action_settle_ms)
+    if delay_ms > 0:
+        page.wait_for_timeout(delay_ms)
+
+
+def _click_label_exact(page: Any, label_text: str) -> None:
+    clicked = page.evaluate(
+        """
+        (labelText) => {
+          const normalize = (value) => (value || "").replace(/\\s+/g, " ").trim().toLowerCase();
+          const wanted = normalize(labelText);
+          const labels = Array.from(document.querySelectorAll("label"));
+          const target = labels.find((label) => normalize(label.textContent) === wanted);
+          if (target instanceof HTMLElement) {
+            target.click();
+            return true;
+          }
+          return false;
+        }
+        """,
+        label_text,
+    )
+    if not clicked:
+        page.get_by_text(label_text, exact=True).first.click()
+
+
+def _answer_visible_no_options(page: Any) -> None:
+    clicked = page.evaluate(
+        """
+        () => {
+          const normalize = (value) => (value || "").replace(/\\s+/g, " ").trim().toLowerCase();
+          let clickedCount = 0;
+          for (const label of Array.from(document.querySelectorAll("label[role='radio'], label"))) {
+            if (normalize(label.textContent) !== "nein") continue;
+            const visible = Boolean(label.offsetWidth || label.offsetHeight || label.getClientRects().length);
+            if (!visible) continue;
+            const input = label.querySelector("input");
+            const checked = label.getAttribute("aria-checked") === "true" || Boolean(input?.checked);
+            if (!checked && label instanceof HTMLElement) {
+              label.click();
+              clickedCount += 1;
+            }
+          }
+          return clickedCount;
+        }
+        """
+    )
+    if clicked == 0:
+        page.get_by_text("nein", exact=True).first.click()
+    page.wait_for_timeout(150)
+
+
+def _terminal_outcome_for_element(element_key: str | None) -> str | None:
+    if element_key in {"hospital", "both", "other_persons"}:
+        return "advisor_handoff"
+    return None
+
+
 def _step_artifacts(page: Any, *, session_dir: Path, step_id: str, index: int, context: dict[str, Any]) -> dict[str, Any]:
     step_dir = session_dir / "artifacts"
     step_dir.mkdir(parents=True, exist_ok=True)
@@ -226,7 +323,7 @@ def _fill_quote_basics(page: Any, profile: SessionProfile) -> None:
     page.get_by_role("textbox", name="Geburtsdatum").fill(profile.birth_date)
     page.locator("[data-cy='ur-select-field-button']").click()
     page.get_by_text(profile.social_provider).click()
-    page.get_by_role("button", name="Weiter").click()
+    _click_next(page)
 
 
 def _fill_personal_medical_data(page: Any, profile: SessionProfile) -> None:
@@ -241,12 +338,12 @@ def _fill_personal_medical_data(page: Any, profile: SessionProfile) -> None:
     text_inputs.nth(4).fill(profile.phone)
     text_inputs.nth(5).fill(str(profile.height_cm))
     text_inputs.nth(6).fill(str(profile.weight_kg))
-    page.get_by_text("nein").click()
-    page.get_by_text("kein behandelnder Arzt").click()
-    page.get_by_role("button", name="Weiter").click()
+    _answer_visible_no_options(page)
+    _click_label_exact(page, "kein behandelnder Arzt")
+    _click_next(page)
 
 
-def _complete_questionnaire_to_boundary(page: Any) -> None:
+def _complete_questionnaire_to_boundary(page: Any, safety: RunnerSafetyConfig, *, coach_mode: bool) -> None:
     pages = [
         ["insuranceInPast7Years", "rejectedApplication"],
         ["diagnoses", "musculoskeletalSystem"],
@@ -260,8 +357,14 @@ def _complete_questionnaire_to_boundary(page: Any) -> None:
                 found = True
         if not found:
             continue
-        page.get_by_role("button", name="Weiter").click()
-        page.wait_for_timeout(350)
+        _click_next(page)
+        _post_action_settle(page, safety, coach_mode=coach_mode)
+        if coach_mode:
+            _wait_for_coach_overlay(
+                page,
+                timeout_ms=safety.coach_overlay_timeout_ms,
+                settle_ms=safety.coach_settle_ms,
+            )
         next_step = detect_step(page)
         if next_step and next_step["pageStepId"] == "s8_confirm":
             return
@@ -278,8 +381,8 @@ def _click_tariff(page: Any, action: str) -> None:
         raise SelectorFailure(f"Unsupported tariff action: {action}")
     page.get_by_role("button", name=button_name).click()
     page.wait_for_timeout(300)
-    if action in {"select_start", "select_optimal"} and page.get_by_role("button", name="Weiter").is_visible():
-        page.get_by_role("button", name="Weiter").click()
+    if action in {"select_start", "select_optimal"} and page.locator("[data-cy='nextStepButton']").is_visible():
+        _click_next(page)
 
 
 def _safe_check(locator: Any) -> None:
@@ -307,21 +410,30 @@ def _safe_check(locator: Any) -> None:
         )
 
 
-def _try_coach_interaction(page: Any, decision: PersonaDecision) -> str | None:
+def _coach_interaction_mode(decision: PersonaDecision) -> str:
+    if decision.action == "abandon":
+        return "dismiss"
+    receptiveness = decision.overlay.coach_receptiveness
+    if receptiveness >= 1.2:
+        return "cta"
+    if receptiveness <= 0.65:
+        return "dismiss"
+    probability = _clamp(int((receptiveness - 0.65) * 100), 15, 85) / 100
+    digest = hashlib.sha256(f"{decision.prompt_hash}:{decision.step_id}:{decision.action}".encode("utf-8")).hexdigest()
+    roll = int(digest[:8], 16) / 0xFFFFFFFF
+    return "cta" if roll < probability else "dismiss"
+
+
+def _try_coach_interaction(page: Any, decision: PersonaDecision, *, read_ms: int = 0) -> str | None:
     try:
-        text = page.evaluate(
-            """
-            () => {
-              const shadow = document.querySelector("#uniqa-conversion-coach-root")?.shadowRoot;
-              return shadow?.textContent?.trim() || "";
-            }
-            """
-        )
+        text = _coach_overlay_text(page)
     except Exception:
         return None
     if not text:
         return None
-    mode = "cta" if decision.overlay.coach_receptiveness >= 1.0 and decision.action != "abandon" else "dismiss"
+    if read_ms > 0:
+        page.wait_for_timeout(read_ms)
+    mode = _coach_interaction_mode(decision)
     page.evaluate(
         """
         (mode) => {
@@ -337,7 +449,15 @@ def _try_coach_interaction(page: Any, decision: PersonaDecision) -> str | None:
     return mode
 
 
-def _execute_step_action(page: Any, *, step_id: str, action: str, profile: SessionProfile) -> dict[str, Any]:
+def _execute_step_action(
+    page: Any,
+    *,
+    step_id: str,
+    action: str,
+    profile: SessionProfile,
+    safety: RunnerSafetyConfig,
+    coach_mode: bool,
+) -> dict[str, Any]:
     if action == "abandon":
         return {"terminal": True, "outcome": "abandoned", "element_key": "close_or_back"}
 
@@ -352,7 +472,7 @@ def _execute_step_action(page: Any, *, step_id: str, action: str, profile: Sessi
             page.get_by_role("checkbox", name="Bei Arztbesuchen").click()
             page.get_by_role("checkbox", name="Im Krankenhaus").click()
             element_key = "both"
-        page.get_by_role("button", name="Weiter").click()
+        _click_next(page)
         return {"terminal": False, "element_key": element_key}
 
     if step_id == "s2_for_whom":
@@ -362,7 +482,7 @@ def _execute_step_action(page: Any, *, step_id: str, action: str, profile: Sessi
         else:
             page.get_by_role("radio", name="Andere Personen").click()
             element_key = "other_persons"
-        page.get_by_role("button", name="Weiter").click()
+        _click_next(page)
         return {"terminal": False, "element_key": element_key}
 
     if step_id == "s3_quote_basics":
@@ -390,7 +510,7 @@ def _execute_step_action(page: Any, *, step_id: str, action: str, profile: Sessi
                 if not checkboxes.nth(index).is_checked():
                     _safe_check(checkboxes.nth(index))
                     break
-        page.get_by_role("button", name="Weiter").click()
+        _click_next(page)
         return {"terminal": False, "element_key": "primary_continue"}
 
     if step_id == "s6_personal_medical_data":
@@ -398,7 +518,7 @@ def _execute_step_action(page: Any, *, step_id: str, action: str, profile: Sessi
         return {"terminal": False, "element_key": "submit_personal_data"}
 
     if step_id == "s7_final_price":
-        _complete_questionnaire_to_boundary(page)
+        _complete_questionnaire_to_boundary(page, safety, coach_mode=coach_mode)
         return {"terminal": False, "element_key": "questionnaire_continue"}
 
     if step_id == "s8_confirm":
@@ -506,11 +626,32 @@ def run_live_session(*, persona_id: str, intention: str, experiment_id: str, see
                     coach_interaction_seen=coach_interaction_seen,
                 )
                 llm_decisions.append(decision.to_trace_row(decision_id=f"lld_{uuid.uuid4().hex[:12]}", history=[{"step_id": row["step_id"], "action": row["action"]} for row in llm_decisions[-4:]]))
+                if config.execution_mode == "coach":
+                    _wait_for_coach_overlay(
+                        page,
+                        timeout_ms=safety.coach_overlay_timeout_ms,
+                        settle_ms=safety.coach_settle_ms,
+                    )
                 page.wait_for_timeout(_clamp(decision.dwell_ms, safety.min_think_ms, safety.max_think_ms))
                 if config.execution_mode == "coach":
-                    interaction = _try_coach_interaction(page, decision)
+                    _wait_for_coach_overlay(
+                        page,
+                        timeout_ms=max(0, safety.coach_overlay_timeout_ms // 2),
+                        settle_ms=0,
+                    )
+                    interaction = _try_coach_interaction(page, decision, read_ms=safety.coach_read_ms)
                     coach_interaction_seen = coach_interaction_seen or interaction is not None
-                execution = _execute_step_action(page, step_id=step_id, action=decision.action, profile=profile)
+                    if interaction:
+                        page.wait_for_timeout(safety.post_action_settle_ms)
+                execution = _execute_step_action(
+                    page,
+                    step_id=step_id,
+                    action=decision.action,
+                    profile=profile,
+                    safety=safety,
+                    coach_mode=config.execution_mode == "coach",
+                )
+                _post_action_settle(page, safety, coach_mode=config.execution_mode == "coach")
                 if config.execution_mode == "baseline":
                     _append_baseline_event(
                         baseline_events,
@@ -533,7 +674,7 @@ def run_live_session(*, persona_id: str, intention: str, experiment_id: str, see
                             derived_context=current_context,
                             metadata=metadata,
                         )
-                terminal_outcome = execution.get("outcome")
+                terminal_outcome = execution.get("outcome") or _terminal_outcome_for_element(execution.get("element_key"))
                 if terminal_outcome is None and step_id == "s8_confirm":
                     terminal_outcome = "advisor_handoff"
                 visited_step_count += 1

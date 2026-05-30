@@ -170,6 +170,46 @@ describe("DataCollector", () => {
     );
   });
 
+  test("emits earlier inactivity on the initial price step", () => {
+    vi.useFakeTimers();
+    const events = mountCollector(`
+      <div>Voraussichtliche Prämie</div>
+      <table>
+        <tr>
+          <th>Start</th>
+          <th>Optimal</th>
+          <th>Opt. Plus</th>
+          <th>Premium</th>
+        </tr>
+        <tr>
+          <td>41,30 EUR</td>
+          <td>73,02 EUR</td>
+          <td>105,07 EUR</td>
+          <td>152,35 EUR</td>
+        </tr>
+      </table>
+      <button data-cy="selectionButton_0" aria-label="Wählen Start">Wählen</button>
+      <button data-cy="selectionButton_1" aria-label="Wählen Optimal">Wählen</button>
+      <button data-cy="selectionButton_2" aria-label="Wählen Opt. Plus">Wählen</button>
+      <button data-cy="selectionButton_3" aria-label="Wählen Premium">Wählen</button>
+      <button data-cy="nextStepButton">Weiter</button>
+    `);
+
+    vi.advanceTimersByTime(12_000);
+
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          elementKey: "inactivity_timer",
+          type: "inactivity",
+          value: {
+            idleMs: 12_000,
+          },
+        }),
+      ]),
+    );
+  });
+
   test("captures scroll direction when the scroll delta is meaningful", () => {
     const events = mountCollector(`
       <h1>Wer soll versichert werden?</h1>
