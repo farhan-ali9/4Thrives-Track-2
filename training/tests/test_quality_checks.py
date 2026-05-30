@@ -40,6 +40,11 @@ class QualityChecksTests(unittest.TestCase):
         self.assertFalse(summary["valid"])
         self.assertIn("row[0] chosen_candidate not in candidate_set", summary["errors"])
 
+    def test_empty_dataset_is_reported(self):
+        summary = module.check_dataset([])
+        self.assertFalse(summary["valid"])
+        self.assertIn("dataset is empty", summary["errors"])
+
 
 if __name__ == "__main__":
     unittest.main()
