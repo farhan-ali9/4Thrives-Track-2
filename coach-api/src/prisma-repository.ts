@@ -22,7 +22,9 @@ export class PrismaCoachRepository implements CoachRepository {
 
   // ── Admin / Policy ──────────────────────────────────────────────────────────
 
-  async createPolicyVersion(input: CreatePolicyVersionInput): Promise<PolicyVersionRecord> {
+  async createPolicyVersion(
+    input: CreatePolicyVersionInput,
+  ): Promise<PolicyVersionRecord> {
     const record = await this.prisma.$transaction(async (tx) => {
       const latest = await tx.policyVersion.findFirst({
         orderBy: {
@@ -154,7 +156,9 @@ export class PrismaCoachRepository implements CoachRepository {
     return records.map(mapV2Event);
   }
 
-  async storeInferenceResult(input: StoreInferenceResultInput): Promise<InferenceResultRecord> {
+  async storeInferenceResult(
+    input: StoreInferenceResultInput,
+  ): Promise<InferenceResultRecord> {
     const record = await this.prisma.modelInferenceResult.create({
       data: {
         decisionId: input.decisionId,
@@ -172,7 +176,9 @@ export class PrismaCoachRepository implements CoachRepository {
     return mapInferenceResult(record);
   }
 
-  async getInferenceResultsBySession(sessionId: string): Promise<InferenceResultRecord[]> {
+  async getInferenceResultsBySession(
+    sessionId: string,
+  ): Promise<InferenceResultRecord[]> {
     const records = await this.prisma.modelInferenceResult.findMany({
       orderBy: { createdAt: "asc" },
       where: { sessionId },
@@ -187,7 +193,8 @@ export class PrismaCoachRepository implements CoachRepository {
         sessionId: input.sessionId,
         decisionId: input.decisionId,
         actionId: input.actionId,
-        impressionTs: input.impressionTs !== null ? BigInt(input.impressionTs) : null,
+        impressionTs:
+          input.impressionTs !== null ? BigInt(input.impressionTs) : null,
         dismissTs: input.dismissTs !== null ? BigInt(input.dismissTs) : null,
         ctaTs: input.ctaTs !== null ? BigInt(input.ctaTs) : null,
         renderSuccess: input.renderSuccess,
@@ -378,7 +385,8 @@ function mapExposure(record: {
     sessionId: record.sessionId,
     decisionId: record.decisionId,
     actionId: record.actionId,
-    impressionTs: record.impressionTs !== null ? Number(record.impressionTs) : null,
+    impressionTs:
+      record.impressionTs !== null ? Number(record.impressionTs) : null,
     dismissTs: record.dismissTs !== null ? Number(record.dismissTs) : null,
     ctaTs: record.ctaTs !== null ? Number(record.ctaTs) : null,
     renderSuccess: record.renderSuccess,

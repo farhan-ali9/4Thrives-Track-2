@@ -4,7 +4,10 @@
 import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { seedPolicy } from "@uniqa-conversion-coach/shared";
-import type { CoachAction, NormalizedEvent } from "@uniqa-conversion-coach/shared/contracts";
+import type {
+  CoachAction,
+  NormalizedEvent,
+} from "@uniqa-conversion-coach/shared/contracts";
 import type { CoachPolicyDocument } from "@uniqa-conversion-coach/shared/policy";
 import { evaluateCoachRequest } from "./policy-engine.js";
 import { applyHardGuardrails } from "./guardrails.js";
@@ -39,7 +42,6 @@ export async function registerV2Routes(
   repository: CoachRepository,
   getActivePolicy: () => Promise<PolicyVersionRecord>,
 ): Promise<void> {
-
   // POST /api/v2/events
   // Ingest a raw extension event, run inference, return coach actions.
   app.post<{ Body: unknown }>("/api/v2/events", async (request, reply) => {
@@ -50,7 +52,9 @@ export async function registerV2Routes(
 
     const validationError = validateEventBody(body);
     if (validationError) {
-      return reply.code(400).send({ error: "invalid_event", message: validationError });
+      return reply
+        .code(400)
+        .send({ error: "invalid_event", message: validationError });
     }
 
     const eventInput = coerceEventBody(body);
@@ -60,7 +64,9 @@ export async function registerV2Routes(
     await repository.storeV2Event(eventInput);
 
     // Load all session events + reconstruct state
-    const allEvents = await repository.getV2EventsBySession(eventInput.sessionId);
+    const allEvents = await repository.getV2EventsBySession(
+      eventInput.sessionId,
+    );
     const state = reconstructSessionState(eventInput.sessionId, allEvents);
 
     // Hard guardrails check
@@ -107,8 +113,14 @@ export async function registerV2Routes(
   // Explicit inference call for a session (no new event storage).
   app.post<{ Body: unknown }>("/api/v2/inference", async (request, reply) => {
     const body = request.body as Record<string, unknown>;
-    if (!body || typeof body !== "object" || typeof body.session_id !== "string") {
-      return reply.code(400).send({ error: "invalid_body", message: "session_id is required" });
+    if (
+      !body ||
+      typeof body !== "object" ||
+      typeof body.session_id !== "string"
+    ) {
+      return reply
+        .code(400)
+        .send({ error: "invalid_body", message: "session_id is required" });
     }
 
     const sessionId = body.session_id as string;
@@ -167,9 +179,16 @@ export async function registerV2Routes(
       return reply.code(400).send({ error: "invalid_body" });
     }
 
-    const missing = requireFields(body, ["exposure_id", "session_id", "decision_id", "action_id"]);
+    const missing = requireFields(body, [
+      "exposure_id",
+      "session_id",
+      "decision_id",
+      "action_id",
+    ]);
     if (missing) {
-      return reply.code(400).send({ error: "invalid_exposure", message: missing });
+      return reply
+        .code(400)
+        .send({ error: "invalid_exposure", message: missing });
     }
 
     await repository.storeExposure({
@@ -196,11 +215,17 @@ export async function registerV2Routes(
 
     const missing = requireFields(body, ["session_id", "outcome"]);
     if (missing) {
-      return reply.code(400).send({ error: "invalid_outcome", message: missing });
+      return reply
+        .code(400)
+        .send({ error: "invalid_outcome", message: missing });
     }
 
     const outcome = String(body.outcome);
-    const allowedOutcomes = ["converted_online", "abandoned", "advisor_handoff"];
+    const allowedOutcomes = [
+      "converted_online",
+      "abandoned",
+      "advisor_handoff",
+    ];
     if (!allowedOutcomes.includes(outcome)) {
       return reply.code(400).send({
         error: "invalid_outcome",
@@ -211,12 +236,16 @@ export async function registerV2Routes(
     await repository.storeOutcome({
       sessionId: String(body.session_id),
       outcome,
-      terminalStepId: typeof body.terminal_step_id === "string" ? body.terminal_step_id : null,
+      terminalStepId:
+        typeof body.terminal_step_id === "string"
+          ? body.terminal_step_id
+          : null,
       advisorRouted: outcome === "advisor_handoff",
       converted: outcome === "converted_online",
       abandoned: outcome === "abandoned",
       endedAt: toNumberOrNull(body.ended_at) ?? Date.now(),
-      finalTariff: typeof body.final_tariff === "string" ? body.final_tariff : null,
+      finalTariff:
+        typeof body.final_tariff === "string" ? body.final_tariff : null,
       finalVisiblePrice: toNumberOrNull(body.final_visible_price),
       priceDelta: toNumberOrNull(body.price_delta),
     });
@@ -226,10 +255,13 @@ export async function registerV2Routes(
 
   // GET /api/v2/sessions/:id
   // Return full session trace for replay and training.
-  app.get<{ Params: { id: string } }>("/api/v2/sessions/:id", async (request) => {
-    const trace = await repository.getSessionTrace(request.params.id);
-    return serializeTrace(trace);
-  });
+  app.get<{ Params: { id: string } }>(
+    "/api/v2/sessions/:id",
+    async (request) => {
+      const trace = await repository.getSessionTrace(request.params.id);
+      return serializeTrace(trace);
+    },
+  );
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -252,7 +284,8 @@ function validateEventBody(body: Record<string, unknown>): string | null {
 
 function coerceEventBody(body: Record<string, unknown>) {
   return {
-    schemaVersion: typeof body.schema_version === "string" ? body.schema_version : "v1",
+    schemaVersion:
+      typeof body.schema_version === "string" ? body.schema_version : "v1",
     eventId: String(body.event_id),
     sessionId: String(body.session_id),
     ts: Number(body.ts),
@@ -264,7 +297,8 @@ function coerceEventBody(body: Record<string, unknown>) {
     derivedSignals: isObject(body.derived_signals) ? body.derived_signals : {},
     derivedContext: isObject(body.derived_context) ? body.derived_context : {},
     runnerMetadata: isObject(body.runner_metadata) ? body.runner_metadata : {},
-    privacyLevel: typeof body.privacy_level === "string" ? body.privacy_level : "anonymous",
+    privacyLevel:
+      typeof body.privacy_level === "string" ? body.privacy_level : "anonymous",
   };
 }
 
@@ -272,7 +306,10 @@ function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
-function requireFields(body: Record<string, unknown>, fields: string[]): string | null {
+function requireFields(
+  body: Record<string, unknown>,
+  fields: string[],
+): string | null {
   for (const f of fields) {
     if (!body[f]) return `${f} is required`;
   }
@@ -288,7 +325,9 @@ function toNumberOrNull(v: unknown): number | null {
 const MAX_INTERVENTIONS = 3;
 const MIN_COOLDOWN_MS = 30_000;
 
-function canRunInference(state: ReturnType<typeof reconstructSessionState>): boolean {
+function canRunInference(
+  state: ReturnType<typeof reconstructSessionState>,
+): boolean {
   if (state.interventionCount >= MAX_INTERVENTIONS) return false;
   if (
     state.lastInterventionTs !== null &&
@@ -313,7 +352,9 @@ function runPolicyEngine(
       pageStepId: state.currentStepId,
       coachStepId: state.currentStepId,
       recentEvents: recentNormalized,
-      detectedSignals: signals as Parameters<typeof evaluateCoachRequest>[0]["detectedSignals"],
+      detectedSignals: signals as Parameters<
+        typeof evaluateCoachRequest
+      >[0]["detectedSignals"],
       derivedContext: {
         selectedTariff: state.selectedTariff,
         selectedAddOns: state.selectedAddons,

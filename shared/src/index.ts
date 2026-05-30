@@ -1,3 +1,3 @@
-export * from "./contracts";
-export * from "./policy";
-export * from "./seed-policy";
+export * from "./contracts.js";
+export * from "./policy.js";
+export * from "./seed-policy.js";

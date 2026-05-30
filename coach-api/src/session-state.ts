@@ -40,9 +40,7 @@ export function reconstructSessionState(
   const now = Date.now();
   const cutoff = now - RECENT_WINDOW_MS;
 
-  const recent = sorted
-    .filter((e) => e.ts >= cutoff)
-    .slice(-MAX_RECENT_EVENTS);
+  const recent = sorted.filter((e) => e.ts >= cutoff).slice(-MAX_RECENT_EVENTS);
 
   let currentStepId: string | null = null;
   let coverage: string | null = null;
@@ -88,10 +86,18 @@ export function reconstructSessionState(
     if (Array.isArray(dc.selectedAddOns)) {
       selectedAddons = dc.selectedAddOns as string[];
     }
-    if (dc.visiblePrice !== undefined && dc.visiblePrice !== null && typeof dc.visiblePrice === "number") {
+    if (
+      dc.visiblePrice !== undefined &&
+      dc.visiblePrice !== null &&
+      typeof dc.visiblePrice === "number"
+    ) {
       visiblePrice = dc.visiblePrice;
     }
-    if (dc.priceDelta !== undefined && dc.priceDelta !== null && typeof dc.priceDelta === "number") {
+    if (
+      dc.priceDelta !== undefined &&
+      dc.priceDelta !== null &&
+      typeof dc.priceDelta === "number"
+    ) {
       priceDelta = dc.priceDelta;
     }
 
@@ -99,7 +105,8 @@ export function reconstructSessionState(
     if (ds.path_oos === true) hasOosPathSignal = true;
     if (ds.tariff_click_oos === true) hasOosTariffClickSignal = true;
     if (ds.dwell === true) hasDwellSignal = true;
-    if (ds.back_nav === true || ds.scroll_back === true) hasBackNavSignal = true;
+    if (ds.back_nav === true || ds.scroll_back === true)
+      hasBackNavSignal = true;
     if (ds.cancel_hover === true) hasCancelHoverSignal = true;
     if (ds.price_hover === true) hasPriceHoverSignal = true;
     if (ds.repeated_change === true) hasRepeatedChangeSignal = true;
@@ -114,7 +121,10 @@ export function reconstructSessionState(
     }
 
     // Outcome signals from element_key
-    if (event.eventType === "coach_cta" && event.elementKey === "advisor_route") {
+    if (
+      event.eventType === "coach_cta" &&
+      event.elementKey === "advisor_route"
+    ) {
       advisorRouted = true;
     }
   }

@@ -17,7 +17,10 @@ export async function hashPassword(password: string): Promise<string> {
   return `${salt}:${hash.toString("hex")}`;
 }
 
-export async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
+export async function verifyPassword(
+  password: string,
+  storedHash: string,
+): Promise<boolean> {
   const [salt, expected] = storedHash.split(":");
   if (!salt || !expected) {
     return false;
@@ -83,7 +86,9 @@ function encodeSessionPayload(payload: SessionPayload): string {
 
 function decodeSessionPayload(value: string): SessionPayload | null {
   try {
-    const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as SessionPayload;
+    const parsed = JSON.parse(
+      Buffer.from(value, "base64url").toString("utf8"),
+    ) as SessionPayload;
     if (!parsed.userId || !parsed.email) {
       return null;
     }

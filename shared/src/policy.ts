@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { CoachPlacement } from "./contracts";
+import type { CoachPlacement } from "./contracts.js";
 
 export const coachEventSchema = z.enum([
   "long_dwell",
