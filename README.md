@@ -1,5 +1,40 @@
 # UNIQA Conversion Coach
 
+An AI coach that watches behavioural signals inside the UNIQA online health-insurance calculator and fires targeted interventions at the moment a user is about to abandon. Raises online conversion 3× across three persona segments in simulation.
+
+## Quickstart — Streamlit Demo (no API key required)
+
+```bash
+pip install -r requirements.txt
+python -m streamlit run streamlit_app/app.py
+```
+
+Open **http://localhost:8501**. The rule-based simulation runs fully locally.
+
+## With LLM persona bots (Featherless AI)
+
+```bash
+cp .env.example .env
+# Fill in FEATHERLESS_API_KEY in .env
+python -m streamlit run streamlit_app/app.py
+```
+
+## CLI simulation
+
+```bash
+python -m coach_sim.run_sim --runs 1000 --policy balanced --out results/
+```
+
+## Self-learning coach
+
+```bash
+python -m coach_sim.run_learning --iterations 10
+```
+
+See [REPORT.md](REPORT.md) for full results, validated hypotheses, and architecture details.
+
+---
+
 Workspace for the live Chrome extension, the production rule-driven coach API,
 the admin portal, and the original simulator/demo assets.
 
