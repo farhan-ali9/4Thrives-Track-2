@@ -9,22 +9,11 @@
 #SBATCH --mem=16G
 
 set -euo pipefail
+PROJECT_ROOT="${SLURM_SUBMIT_DIR:-$PWD}"
+source "$PROJECT_ROOT/leonardo/slurm_common.sh"
 mkdir -p artifacts/logs
-if [[ -n "${LEONARDO_ENV_FILE:-}" ]]; then
-  set -a
-  # shellcheck disable=SC1090
-  source "$LEONARDO_ENV_FILE"
-  set +a
-fi
-
-if [[ -z "${PIXI_CACHE_DIR:-}" ]]; then
-  if [[ -w /scratch_local || ! -e /scratch_local ]]; then
-    export PIXI_CACHE_DIR="/scratch_local/pixi-cache-${USER}"
-  else
-    export PIXI_CACHE_DIR="/tmp/pixi-cache-${USER}"
-  fi
-fi
-mkdir -p "$PIXI_CACHE_DIR"
+leonardo_load_env
+leonardo_prepare_pixi_cache
 
 : "${PIXI_BIN:=$HOME/.pixi/bin/pixi}"
 : "${RUNNER_MANIFEST:=leonardo/pixi.toml}"
