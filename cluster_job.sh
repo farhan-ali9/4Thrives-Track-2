@@ -13,7 +13,7 @@
 #
 #SBATCH --job-name=uniqa-coach-sim
 #SBATCH --account=uniqa_hackathon
-#SBATCH --partition=g100_usr_prod
+#SBATCH --partition=boost_usr_prod
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=32
 #SBATCH --cpus-per-task=1
