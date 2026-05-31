@@ -448,6 +448,8 @@ with st.sidebar:
     if _POLICY_PATH.exists():
         _policy_options = ["adaptive (learned)"] + _policy_options
     policy = st.selectbox("Coach policy", _policy_options, index=0)
+    if _POLICY_PATH.exists():
+        st.caption("Adaptive policy trained from cluster simulation data.")
     demo_mode = st.radio(
         "Live demo mode",
         ["Winning demo", "Custom seed"],
@@ -498,15 +500,64 @@ with tab_demo:
 
 with tab_batch:
     st.subheader("Seeded simulation results")
+
+    # Load cluster results from Leonardo if available.
+    _cluster_csv = ROOT / "coach_sim" / "results" / "cluster" / "cluster_raw.csv"
+    _use_cluster = False
+    if _cluster_csv.exists():
+        _cl_df = pd.read_csv(_cluster_csv)
+        _cl_n = len(_cl_df[_cl_df["policy"] == "baseline"]) // len(PERSONAS)
+        st.info(
+            f"Leonardo cluster results available ({_cl_n:,} runs/persona). "
+            "Toggle below to use them as the primary data source.",
+            icon="🖥️",
+        )
+        _use_cluster = st.toggle("Use Leonardo cluster results", value=True, key="use_cluster_toggle")
+
     cols = st.columns([1, 1, 2])
     with cols[0]:
-        batch_runs = st.slider("Runs per persona", 100, 2500, 500, step=100)
+        batch_runs = st.slider("Runs per persona", 100, 2500, 500, step=100,
+                               disabled=_use_cluster)
     with cols[1]:
-        batch_policy = st.selectbox("Policy to test", ["balanced", "minimal", "aggressive"], key="batch_policy")
+        batch_policy = st.selectbox("Policy to test", ["balanced", "minimal", "aggressive"],
+                                    key="batch_policy")
     with cols[2]:
-        run_button = st.button("Run batch simulation", type="primary", use_container_width=True)
+        run_button = st.button("Run batch simulation", type="primary",
+                               use_container_width=True, disabled=_use_cluster)
 
-    if run_button or "batch_baseline" not in st.session_state:
+    if _use_cluster:
+        # Build JourneyResult-compatible aggregates from the cluster CSV.
+        import csv as _csv_mod
+        def _csv_to_results(df_rows):
+            from coach_sim.sim import JourneyResult
+            from coach_sim.journey import Step
+            results = []
+            for _, row in df_rows.iterrows():
+                r = JourneyResult.__new__(JourneyResult)
+                r.persona_id = row["persona_id"]
+                r.converted = bool(row["converted"])
+                r.advisor_routed = bool(row["advisor_routed"])
+                r.abandoned = bool(row["abandoned"])
+                r.terminal_step = Step(row["terminal_step"])
+                r.interventions_shown = int(row["interventions_shown"])
+                r.interventions_accepted = int(row["interventions_accepted"])
+                r.initial_price_eur = float(row["initial_price_eur"])
+                r.final_price_eur = float(row["final_price_eur"])
+                r.price_delta_eur = float(row["price_delta_eur"])
+                r.steps = []
+                r.coach_events = []
+                results.append(r)
+            return results
+        _base_df   = _cl_df[_cl_df["policy"] == "baseline"]
+        _coach_pol = batch_policy if batch_policy in _cl_df["policy"].unique() else _cl_df["policy"].unique()[0]
+        _coach_df  = _cl_df[_cl_df["policy"] == _coach_pol]
+        base  = _csv_to_results(_base_df)
+        coach = _csv_to_results(_coach_df)
+        st.caption(f"Loaded {len(base):,} baseline + {len(coach):,} coached journeys from Leonardo cluster (job 43143976).")
+        st.session_state.batch_baseline = base
+        st.session_state.batch_coach = coach
+        st.session_state.batch_policy_used = _coach_pol
+    elif run_button or "batch_baseline" not in st.session_state:
         base, coach = run_batch(int(batch_runs), int(seed), batch_policy)
         st.session_state.batch_baseline = base
         st.session_state.batch_coach = coach
@@ -544,24 +595,34 @@ with tab_batch:
     ])
     st.dataframe(persona_df, use_container_width=True, hide_index=True)
 
-    drop_rows = []
-    for step in ["s4_initial_price", "s5_add_ons", "s7_final_price"]:
-        drop_rows.append({"Step": step_label(step), "Variant": "Baseline", "Drop-off": base_agg.dropoff_per_step[step] * 100})
-        drop_rows.append({"Step": step_label(step), "Variant": f"Coach {st.session_state.batch_policy_used}", "Drop-off": coach_agg.dropoff_per_step[step] * 100})
-    drop_df = pd.DataFrame(drop_rows)
-    chart = (
-        alt.Chart(drop_df)
-        .mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
-        .encode(
-            x=alt.X("Step:N", title=None),
-            y=alt.Y("Drop-off:Q", title="Drop-off %"),
-            xOffset="Variant:N",
-            color=alt.Color("Variant:N", scale=alt.Scale(range=[RED, CYAN])),
-            tooltip=["Step", "Variant", alt.Tooltip("Drop-off:Q", format=".1f")],
+    _has_step_data = any(len(r.steps) > 0 for r in base[:10])
+    if _has_step_data:
+        drop_rows = []
+        for step in ["s4_initial_price", "s5_add_ons", "s7_final_price"]:
+            drop_rows.append({"Step": step_label(step), "Variant": "Baseline", "Drop-off": base_agg.dropoff_per_step.get(step, 0) * 100})
+            drop_rows.append({"Step": step_label(step), "Variant": f"Coach {st.session_state.batch_policy_used}", "Drop-off": coach_agg.dropoff_per_step.get(step, 0) * 100})
+        drop_df = pd.DataFrame(drop_rows)
+        chart = (
+            alt.Chart(drop_df)
+            .mark_bar(cornerRadiusTopLeft=3, cornerRadiusTopRight=3)
+            .encode(
+                x=alt.X("Step:N", title=None),
+                y=alt.Y("Drop-off:Q", title="Drop-off %"),
+                xOffset="Variant:N",
+                color=alt.Color("Variant:N", scale=alt.Scale(range=[RED, CYAN])),
+                tooltip=["Step", "Variant", alt.Tooltip("Drop-off:Q", format=".1f")],
+            )
+            .properties(height=330)
         )
-        .properties(height=330)
-    )
-    st.altair_chart(chart, use_container_width=True)
+        st.altair_chart(chart, use_container_width=True)
+    else:
+        # Cluster CSV doesn't carry per-step traces — show conversion by persona instead.
+        st.info(
+            "Step-level drop-off chart requires local batch run (cluster CSV has aggregated data). "
+            "The per-persona conversion breakdown above shows the impact. "
+            "Run a local batch to see step-by-step detail.",
+            icon="ℹ️",
+        )
 
     # ── Abandonment reason analysis ─────────────────────────────────────────
     st.subheader("Why users stop — and what UNIQA can do")
@@ -571,7 +632,7 @@ with tab_batch:
         "traces — no manual tagging required."
     )
 
-    ab_insights = insights_from_results(base)   # baseline runs only
+    ab_insights = insights_from_results(base) if _has_step_data else []   # needs step traces
     if ab_insights:
         ab_df = pd.DataFrame([
             {
@@ -975,6 +1036,42 @@ with tab_cluster:
             f"±{(1.96 * (0.2 * 0.8 / cl_runs_done) ** 0.5 * 100):.2f} pp — "
             f"results are statistically stable."
         )
+
+        # Train adaptive policy from cluster results.
+        st.divider()
+        st.markdown("**Train adaptive policy from cluster data**")
+        st.caption(
+            "Uses the cluster-scale run above to improve the self-learning coach. "
+            "After training, select **adaptive (learned)** in the sidebar to use it in the Live Demo."
+        )
+        n_learn_runs = min(cl_runs_done, 300)
+        if st.button(
+            f"Train adaptive coach on {n_learn_runs * len(PERSONAS):,} journeys",
+            type="secondary",
+            use_container_width=True,
+        ):
+            _ap = AdaptivePolicy.load(_POLICY_PATH) if _POLICY_PATH.exists() else AdaptivePolicy()
+            _prog = st.progress(0.0, text="Learning from cluster journeys…")
+            _total_learn = n_learn_runs * len(PERSONAS)
+            _done_learn = 0
+            for _pid_l in PERSONAS:
+                for _i_l in range(n_learn_runs):
+                    _seed_l = f"cluster-learn:{_pid_l}:{_i_l}"
+                    _bot_l = PersonaBot(PERSONAS[_pid_l], random.Random(_seed_l))
+                    _coach_l = AdaptiveCoach(_ap, persona_id=_pid_l)
+                    _res_l = run_journey(_bot_l, coach=_coach_l, detector=Detector())
+                    _ap.update_from_result(_res_l)
+                    _done_learn += 1
+                    if _done_learn % max(1, _total_learn // 20) == 0:
+                        _prog.progress(_done_learn / _total_learn,
+                                       text=f"Learning… {_done_learn}/{_total_learn} journeys")
+            _ap.save(_POLICY_PATH)
+            _prog.progress(1.0, text="Done!")
+            st.success(
+                f"Adaptive policy trained on {_total_learn:,} cluster-scale journeys and saved. "
+                "Switch to **adaptive (learned)** in the sidebar."
+            )
+            st.rerun()
 
     # SLURM script download.
     st.divider()
