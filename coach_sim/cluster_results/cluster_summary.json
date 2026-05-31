@@ -1,0 +1,42 @@
+[
+  {
+    "policy": "baseline",
+    "conversion_weighted": 5.09,
+    "n": 15000,
+    "conversion": 4.99,
+    "advisor": 2.87,
+    "abandoned": 92.14,
+    "trigger_precision": 0.0,
+    "annoyance": 0.0
+  },
+  {
+    "policy": "balanced",
+    "conversion_weighted": 21.53,
+    "n": 15000,
+    "conversion": 21.77,
+    "advisor": 2.87,
+    "abandoned": 75.37,
+    "trigger_precision": 82.21,
+    "annoyance": 17.79
+  },
+  {
+    "policy": "minimal",
+    "conversion_weighted": 18.74,
+    "n": 15000,
+    "conversion": 18.14,
+    "advisor": 2.87,
+    "abandoned": 78.99,
+    "trigger_precision": 78.3,
+    "annoyance": 21.7
+  },
+  {
+    "policy": "aggressive",
+    "conversion_weighted": 23.03,
+    "n": 15000,
+    "conversion": 23.68,
+    "advisor": 2.87,
+    "abandoned": 73.45,
+    "trigger_precision": 76.24,
+    "annoyance": 23.76
+  }
+]

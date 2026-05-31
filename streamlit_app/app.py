@@ -537,8 +537,10 @@ with tab_demo:
 with tab_batch:
     st.subheader("Seeded simulation results")
 
-    # Load cluster results from Leonardo if available.
-    _cluster_csv = ROOT / "coach_sim" / "results" / "cluster" / "cluster_raw.csv"
+    # Load cluster results from Leonardo if available (tracked path first, fallback to local).
+    _cluster_csv = ROOT / "coach_sim" / "cluster_results" / "cluster_raw.csv"
+    if not _cluster_csv.exists():
+        _cluster_csv = ROOT / "coach_sim" / "results" / "cluster" / "cluster_raw.csv"
     _use_cluster = False
     if _cluster_csv.exists():
         _cl_df = pd.read_csv(_cluster_csv)
@@ -589,7 +591,7 @@ with tab_batch:
         _coach_df  = _cl_df[_cl_df["policy"] == _coach_pol]
         base  = _csv_to_results(_base_df)
         coach = _csv_to_results(_coach_df)
-        st.caption(f"Loaded {len(base):,} baseline + {len(coach):,} coached journeys from Leonardo cluster (job 43143976).")
+        st.caption(f"Loaded {len(base):,} baseline + {len(coach):,} coached journeys from Leonardo cluster (Job 43143976, euhpc_d30_031, boost_usr_prod).")
         st.session_state.batch_baseline = base
         st.session_state.batch_coach = coach
         st.session_state.batch_policy_used = _coach_pol

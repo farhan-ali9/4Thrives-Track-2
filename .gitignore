@@ -15,6 +15,7 @@ test-results/
 demo-artifacts/
 
 coach_sim/results/
+!coach_sim/cluster_results/
 *.log
 .DS_Store
 AGENTS.md
