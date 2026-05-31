@@ -1,168 +1,122 @@
 # UNIQA Conversion Coach
 
-Workspace for the live Chrome extension, the deterministic runtime API,
-and the live browser runner used for baseline-vs-coach bulk runs.
+Live Chrome extension + coach API + Playwright persona runner for baseline-vs-coach evaluation on the real UNIQA calculator.
 
-## Packages
+**Submission:** [`submissions/4Thrives/`](submissions/4Thrives/) (report, hypotheses, results, demo guide)
 
-- `extension/`: Chrome extension that classifies the live UNIQA calculator into route families and stages, then renders one runtime decision at a time.
-- `coach-api/`: Fastify + Prisma backend exposing the clean runtime endpoints for decisions, outcomes, and session replay.
-- `admin-portal/`: Legacy admin UI kept in the workspace but no longer required by the MVP runtime.
-- `shared/`: Shared runtime contracts used by the extension and runtime API.
-- `coach_sim/`: Simulation backend used for the hackathon demo and synthetic evaluation.
-- `streamlit_app/`: Streamlit demo UI for the simulator.
+## For hackathon judges
 
-## Install
+Bare minimum to see the product working locally. Precomputed eval metrics are in [`submissions/4Thrives/extras/results/`](submissions/4Thrives/extras/results/) — you do not need to run the pipeline to review our numbers.
+
+### 1. One-time setup
 
 ```bash
 npm install
-```
-
-Python/Streamlit tooling remains separate:
-
-```bash
-python -m pip install -r streamlit_app/requirements.txt
-```
-
-For the live browser pipeline:
-
-```bash
 python3 -m pip install -r requirements-pipeline.txt
 python3 -m playwright install chromium
+cp .env.example .env
 ```
 
-## Local Development
+Requires Node.js, Python 3, Docker (Postgres), and Chrome.
 
-Set environment variables from `.env.example`. For the coach API runtime you
-need a Postgres database.
+### 2. Ollama (default persona LLM)
 
-Start the local Postgres database:
+Install [Ollama](https://ollama.com), then:
 
 ```bash
-npm run db:up
-npm run db:migrate
+ollama serve
+ollama pull qwen2.5:3b-instruct
 ```
 
-Useful database commands:
+`.env` already uses `LLM_PROVIDER=local` and `http://localhost:11434`. For cloud LLM instead, set `LLM_PROVIDER=remote` and the Featherless keys in `.env.example`.
+
+Ollama is only required for **automated** persona runs; manual extension testing does not need it.
+
+### 3. Start backend
+
+Terminal A:
 
 ```bash
-npm run db:logs
-npm run db:down
-npm run db:reset
-```
-
-Start the backend:
-
-```bash
+npm run db:up && npm run db:migrate
 npm run dev:coach-api
 ```
 
-Build the extension:
+Verify: `curl http://127.0.0.1:8787/healthz`
+
+### 4. Load the Chrome extension
 
 ```bash
 npm run build:extension
 ```
 
-Load `extension/dist` as an unpacked Chrome extension.
+Chrome → **Extensions** → **Developer mode** → **Load unpacked** → select `extension/dist`.
 
-The extension manifest is generated at build time and always includes:
+Open the [UNIQA health calculator](https://www.uniqa.at/krankenversicherung/rechner) and walk through a Start or Optimal path (private doctor, myself only). Coach popups appear at funnel steps when the API is running.
 
-- `https://www.uniqa.at/*`
-- `http://127.0.0.1:8787/*`
-- the configured `VITE_COACH_API_ORIGIN`
-- any comma-separated `VITE_COACH_API_EXTRA_ORIGINS`
+**What you should see:** the extension detects funnel stage from the live page; the coach API returns deterministic intervention plays — the LLM does not decide *when* to coach.
 
-## Backend/API
+## Automated evaluation (optional)
 
-Public routes:
+### How it works
 
-- `POST /api/runtime/decide`
-- `POST /api/runtime/outcome`
-- `GET /api/runtime/sessions/:id`
-- `GET /healthz`
+Playwright opens real Chrome sessions on `uniqa.at`. Three personas (Judith, Franz, Peter) × four intentions run in **baseline** (no extension) and **coach** (extension loaded) modes. Session traces feed `evaluation/report_bulk_runs.py`, which produces conversion, drop-off, and popup charts.
 
-Important behavior:
+### Why it takes a long time
 
-- The extension owns session state and sends compact journey snapshots.
-- The runtime returns at most one deterministic conversion play per request.
-- Postgres is used as a telemetry sink for snapshots, decisions, and outcomes.
-- The old policy/admin runtime is no longer part of the MVP request path.
+- Real browser on the production site — not a mock UI
+- An LLM call per persona decision step
+- Submission minimum: **24 sessions** (12 baseline + 12 coach); full loop: 300+
 
-## Build And Test
+Coach mode requires a built extension and a healthy coach API.
 
 ```bash
-npm run build
+npm run pipeline:submission
+```
+
+Traces land in `artifacts/browser-runs/`; the report is copied to `submissions/4Thrives/extras/results/`.
+
+Full validation + bulk:
+
+```bash
+npm run pipeline:local
+```
+
+Optional overrides: `LOCAL_VALIDATE_SESSIONS`, `LOCAL_BULK_SESSIONS`, `EXPERIMENT_PREFIX`.
+
+**Regenerate report** from existing traces (s8 relabel, no rerun):
+
+```bash
+python3 scripts/patch_s8_trace_outcomes.py artifacts/browser-runs/local-bulk-baseline-* artifacts/browser-runs/local-bulk-coach-*
+python3 evaluation/report_bulk_runs.py --baseline artifacts/browser-runs/<baseline-dir> --coach artifacts/browser-runs/<coach-dir> --output-dir artifacts/reports/final_run
+cp -r artifacts/reports/final_run/* submissions/4Thrives/extras/results/
+```
+
+Online conversion in reports = in-scope journey reaching `s8_confirm` (Start/Optimal, private doctor, myself only). The runner observes but does not submit the Berateranfrage form.
+
+## Repo layout
+
+| Path | Role |
+|------|------|
+| `extension/` | Live funnel detection + coach UI on uniqa.at |
+| `coach-api/` | Deterministic `/api/runtime/*` decision API |
+| `browser-runner/` | Playwright personas (Judith, Franz, Peter) |
+| `evaluation/` | Metrics + `report_bulk_runs.py` |
+| `shared/` | Runtime contracts |
+
+`admin-portal/` is legacy and not required for the MVP path.
+
+## Developers
+
+**API:** `POST /api/runtime/decide`, `POST /api/runtime/outcome`, `GET /api/runtime/sessions/:id`, `GET /healthz`
+
+**Test:**
+
+```bash
 npm test
 python3 -m unittest \
-  browser-runner/tests/test_backend_client.py \
-  browser-runner/tests/test_live_page_extension_state.py \
-  browser-runner/tests/test_mock_runner.py \
   browser-runner/tests/test_run_batch.py \
-  training/tests/test_uniqa_pipeline.py \
   evaluation/tests/test_metrics.py \
   evaluation/tests/test_report_bulk_runs.py
 ```
 
-`npm test` rebuilds the shared workspace first so the extension and backend
-tests always execute against the current shared contracts/schema.
-
-Live extension smoke:
-
-```bash
-cd extension
-npm run test:live
-```
-
-## Live Simulation CLI
-
-The active CLI is intentionally small and only supports live baseline/coach runs plus offline artifact reporting:
-
-```bash
-./uniqa-pipeline validate-live --execution-mode baseline
-./uniqa-pipeline validate-live --execution-mode coach
-./uniqa-pipeline run-live --execution-mode coach --sessions 300
-./uniqa-pipeline local-full-loop --validate-sessions 12 --bulk-sessions 300
-python3 evaluation/report_bulk_runs.py \
-  --baseline artifacts/browser-runs/<run>/baseline-bulk \
-  --coach artifacts/browser-runs/<run>/coach-bulk \
-  --output-dir artifacts/reports/<run>
-```
-
-Trace files now include runner-owned `events`, `llm_decisions`, per-step screenshots and DOM snapshots, `runtime_trace` for coach sessions, and `coach_render_log` so popup timing can be audited offline.
-
-The local-machine workflow is now the primary path:
-
-- Set `FEATHERLESS_API_KEY` in `.env`.
-- Start the local DB and coach API.
-- Run [LOCAL_FULL_LOOP_COMMANDS.md](/Users/davidklingbeil2/Documents/Hackathon/Uniqa_hackathon/4Thrives-Track-2/LOCAL_FULL_LOOP_COMMANDS.md) for the exact command sequence.
-- For a single command, use `bash scripts/run_local_full_loop.sh` or `npm run pipeline:local`.
-
-Featherless is used as the default runner-side LLM provider via its OpenAI-compatible endpoint at [https://api.featherless.ai/v1/chat/completions](https://api.featherless.ai/v1/chat/completions). The model list is available at [https://api.featherless.ai/v1/models](https://api.featherless.ai/v1/models).
-
-## DigitalOcean Deployment
-
-Files added for deployment:
-
-- [Dockerfile](/Users/davidklingbeil2/Documents/Hackathon/Uniqa_hackathon/4Thrives-Track-2/Dockerfile)
-- [.do/app.yaml](/Users/davidklingbeil2/Documents/Hackathon/Uniqa_hackathon/4Thrives-Track-2/.do/app.yaml)
-- [coach-api/prisma/migrations/20260530111500_init/migration.sql](/Users/davidklingbeil2/Documents/Hackathon/Uniqa_hackathon/4Thrives-Track-2/coach-api/prisma/migrations/20260530111500_init/migration.sql)
-
-The App Platform template expects:
-
-- a Docker build from the repo root
-- one web service serving both the API and built admin SPA
-- one managed Postgres database exposed to the service as `DATABASE_URL`
-- runtime secrets for `SESSION_SECRET` and bootstrap admin credentials
-
-Update `.do/app.yaml` with the real GitHub repo before deploying.
-
-## Reporting Outputs
-
-`evaluation/report_bulk_runs.py` writes:
-
-- `summary.json`
-- `summary.md`
-- `outcomes.svg`
-- `dropoffs.svg`
-- `popup_rendering.svg`
-- `index.html`
+**Deploy:** Coach API on DigitalOcean — [Dockerfile](Dockerfile), [.do/app.yaml](.do/app.yaml)

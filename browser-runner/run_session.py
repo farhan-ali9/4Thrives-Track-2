@@ -553,7 +553,8 @@ def _execute_step_action(
         return {"terminal": False, "element_key": "questionnaire_continue"}
 
     if step_id == "s8_confirm":
-        return {"terminal": True, "outcome": ADVISOR_OUTCOME, "element_key": "consultationContact"}
+        outcome = "converted_online" if _classify_route_family(journey_state) == "online_doctor" else ADVISOR_OUTCOME
+        return {"terminal": True, "outcome": outcome, "element_key": "consultationContact"}
 
     raise SelectorFailure(f"Unsupported step action execution for {step_id}")
 
@@ -842,12 +843,15 @@ def run_live_session(*, persona_id: str, intention: str, experiment_id: str, see
 
                 terminal_outcome = execution.get("outcome") or _terminal_outcome_for_element(execution.get("element_key"))
                 if terminal_outcome is None and step_id == "s8_confirm":
-                    terminal_outcome = ADVISOR_OUTCOME
+                    terminal_outcome = "converted_online" if _classify_route_family(journey_state) == "online_doctor" else ADVISOR_OUTCOME
                 visited_step_count += 1
 
             final_step = detect_step(page)
             if terminal_outcome is None:
-                terminal_outcome = ADVISOR_OUTCOME if final_step and final_step["pageStepId"] == "s8_confirm" else "abandoned"
+                if final_step and final_step["pageStepId"] == "s8_confirm":
+                    terminal_outcome = "converted_online" if _classify_route_family(journey_state) == "online_doctor" else ADVISOR_OUTCOME
+                else:
+                    terminal_outcome = "abandoned"
             terminal_outcome = _normalize_outcome(terminal_outcome)
             logger.info("session %s finished | outcome=%s after %d steps", session_id, terminal_outcome, visited_step_count)
 

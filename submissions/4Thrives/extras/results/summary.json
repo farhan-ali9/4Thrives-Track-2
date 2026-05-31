@@ -1,0 +1,158 @@
+{
+  "baseline": {
+    "batch": {
+      "circuit_breaker": null,
+      "experiment_id": "local-bulk-baseline-20260531-051304",
+      "failure_log": [],
+      "failures": {
+        "backend": 0,
+        "page": 0,
+        "selector": 0
+      },
+      "mode": "bulk",
+      "trace_dir": "artifacts/browser-runs/local-bulk-baseline-20260531-051304",
+      "traces": [
+        "artifacts/browser-runs/local-bulk-baseline-20260531-051304/sess_b21b09514961.json",
+        "artifacts/browser-runs/local-bulk-baseline-20260531-051304/sess_ff33fe4a4274.json",
+        "artifacts/browser-runs/local-bulk-baseline-20260531-051304/sess_aa1db6be1b88.json",
+        "artifacts/browser-runs/local-bulk-baseline-20260531-051304/sess_67f6af682a47.json",
+        "artifacts/browser-runs/local-bulk-baseline-20260531-051304/sess_6637aa114842.json",
+        "artifacts/browser-runs/local-bulk-baseline-20260531-051304/sess_3bd15262e0ee.json",
+        "artifacts/browser-runs/local-bulk-baseline-20260531-051304/sess_102ea071961f.json",
+        "artifacts/browser-runs/local-bulk-baseline-20260531-051304/sess_3309e7d08359.json",
+        "artifacts/browser-runs/local-bulk-baseline-20260531-051304/sess_6b8d018e9528.json",
+        "artifacts/browser-runs/local-bulk-baseline-20260531-051304/sess_d3da6c142a30.json",
+        "artifacts/browser-runs/local-bulk-baseline-20260531-051304/sess_6f065c2ac7f7.json",
+        "artifacts/browser-runs/local-bulk-baseline-20260531-051304/sess_4cca0b98214a.json"
+      ]
+    },
+    "metrics": {
+      "abandonment_rate": 0.4166666666666667,
+      "acceptance_rate": 0.0,
+      "advisor_handoff_count": 2,
+      "advisor_lead_count": 2,
+      "advisor_lead_submission_rate": 0.16666666666666666,
+      "advisor_routing_correctness": 1.0,
+      "annoyance_rate": 0.0,
+      "backend_timeout_rate": 0.0,
+      "conversion_by_intention": {
+        "comparison": 0.3333333333333333,
+        "orientation": 0.6666666666666666,
+        "price_check": 0.3333333333333333,
+        "purchase": 0.3333333333333333
+      },
+      "conversion_by_persona": {
+        "franz": 1.0,
+        "judith": 0.0,
+        "peter": 0.25
+      },
+      "dismiss_rate": 0.0,
+      "dropoff_by_persona_step": {
+        "peter:s5_add_ons": 1
+      },
+      "extension_render_success_rate": 1.0,
+      "impression_to_cta_rate": 0.0,
+      "inference_latency_ms_avg": 0.0,
+      "intervention_count": 0,
+      "intervention_precision": 1.0,
+      "intervention_recall": 1.0,
+      "intervention_volume_per_session": 0.0,
+      "online_conversion_rate": 0.4166666666666667,
+      "popup_cta_count": 0,
+      "popup_dismiss_count": 0,
+      "popup_render_rate": 0.0,
+      "popup_rendered_steps": 0,
+      "popup_steps": 0,
+      "popup_timeout_count": 0,
+      "s4_initial_price_dropoff": 0,
+      "s5_addon_dropoff": 1,
+      "s7_final_price_dropoff": 0,
+      "selector_drift_rate": 0.0,
+      "sessions": 12,
+      "step_detection_success_rate": 0.6145833333333334,
+      "trace_completeness_rate": 1.0
+    }
+  },
+  "coach": {
+    "batch": {
+      "circuit_breaker": null,
+      "experiment_id": "local-bulk-coach-20260531-054723",
+      "failure_log": [],
+      "failures": {
+        "backend": 0,
+        "page": 0,
+        "selector": 0
+      },
+      "mode": "bulk",
+      "trace_dir": "artifacts/browser-runs/local-bulk-coach-20260531-054723",
+      "traces": [
+        "artifacts/browser-runs/local-bulk-coach-20260531-054723/sess_7f477a9f34f1.json",
+        "artifacts/browser-runs/local-bulk-coach-20260531-054723/sess_efdf1cc140ed.json",
+        "artifacts/browser-runs/local-bulk-coach-20260531-054723/sess_4655b6e5f096.json",
+        "artifacts/browser-runs/local-bulk-coach-20260531-054723/sess_4e631f9cf488.json",
+        "artifacts/browser-runs/local-bulk-coach-20260531-054723/sess_658dc7f72e45.json",
+        "artifacts/browser-runs/local-bulk-coach-20260531-054723/sess_2d25d75bf5c2.json",
+        "artifacts/browser-runs/local-bulk-coach-20260531-054723/sess_74735d47a975.json",
+        "artifacts/browser-runs/local-bulk-coach-20260531-054723/sess_93b3e025c331.json",
+        "artifacts/browser-runs/local-bulk-coach-20260531-054723/sess_8cfc8aee76ed.json",
+        "artifacts/browser-runs/local-bulk-coach-20260531-054723/sess_71e0f8fef669.json",
+        "artifacts/browser-runs/local-bulk-coach-20260531-054723/sess_38b6c0595742.json",
+        "artifacts/browser-runs/local-bulk-coach-20260531-054723/sess_c1bfa7ee1942.json"
+      ]
+    },
+    "metrics": {
+      "abandonment_rate": 0.5,
+      "acceptance_rate": 0.0,
+      "advisor_handoff_count": 0,
+      "advisor_lead_count": 0,
+      "advisor_lead_submission_rate": 0.0,
+      "advisor_routing_correctness": 1.0,
+      "annoyance_rate": 0.0,
+      "backend_timeout_rate": 0.0,
+      "conversion_by_intention": {
+        "comparison": 0.6666666666666666,
+        "orientation": 0.3333333333333333,
+        "price_check": 0.3333333333333333,
+        "purchase": 0.6666666666666666
+      },
+      "conversion_by_persona": {
+        "franz": 0.75,
+        "judith": 0.0,
+        "peter": 0.75
+      },
+      "dismiss_rate": 0.0,
+      "dropoff_by_persona_step": {
+        "peter:s5_add_ons": 1
+      },
+      "extension_render_success_rate": 1.0,
+      "impression_to_cta_rate": 0.0,
+      "inference_latency_ms_avg": 0.0,
+      "intervention_count": 0,
+      "intervention_precision": 1.0,
+      "intervention_recall": 1.0,
+      "intervention_volume_per_session": 0.0,
+      "online_conversion_rate": 0.5,
+      "popup_cta_count": 0,
+      "popup_dismiss_count": 0,
+      "popup_render_rate": 0.0,
+      "popup_rendered_steps": 0,
+      "popup_steps": 82,
+      "popup_timeout_count": 0,
+      "s4_initial_price_dropoff": 0,
+      "s5_addon_dropoff": 1,
+      "s7_final_price_dropoff": 0,
+      "selector_drift_rate": 0.0,
+      "sessions": 12,
+      "step_detection_success_rate": 0.7083333333333334,
+      "trace_completeness_rate": 1.0
+    }
+  },
+  "delta": {
+    "abandonment_reduction": -0.08333333333333331,
+    "advisor_lead_submission_uplift": -0.16666666666666666,
+    "conversion_rate_uplift": 0.08333333333333331,
+    "s4_dropoff_reduction": 0,
+    "s5_dropoff_reduction": 0,
+    "s7_dropoff_reduction": 0
+  }
+}

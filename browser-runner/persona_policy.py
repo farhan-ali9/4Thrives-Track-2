@@ -27,7 +27,51 @@ STEP_ALIASES = {
 }
 ONLINE_STEPS = LIVE_UNIQA_STEPS
 OUT_OF_SCOPE_ELEMENTS = {"hospital", "other_persons", "opt_plus", "premium"}
+ONLINE_CONVERSION_TARIFFS = {"start", "optimal"}
+OOS_COVERAGES = {"hospital", "both"}
 ADVISOR_TERMINAL_ELEMENTS = {"consultationContact", "advisor_cta", "berateranfrage"}
+
+def infer_journey_selection(events: list[dict[str, Any]]) -> dict[str, str | None]:
+    coverage: str | None = None
+    tariff: str | None = None
+    insured_person = "myself"
+    for event in events:
+        element_key = event.get("element_key")
+        if element_key in {"at_doctor", "hospital", "both"}:
+            coverage = element_key
+        if element_key in {"start", "optimal", "opt_plus", "premium"}:
+            tariff = element_key
+        if element_key == "other_persons":
+            insured_person = "other_persons"
+    return {"coverage": coverage, "tariff": tariff, "insured_person": insured_person}
+
+
+def is_in_scope_online_journey(events: list[dict[str, Any]]) -> bool:
+    selection = infer_journey_selection(events)
+    if selection["insured_person"] == "other_persons":
+        return False
+    if selection["coverage"] in OOS_COVERAGES:
+        return False
+    if selection["tariff"] in {"opt_plus", "premium"}:
+        return False
+    return selection["tariff"] in ONLINE_CONVERSION_TARIFFS
+
+
+def reached_s8_confirm(*, artifacts: list[dict[str, Any]] | None = None, events: list[dict[str, Any]] | None = None) -> bool:
+    artifact_steps = [canonicalize_step_id(item.get("step_id")) for item in (artifacts or []) if item.get("step_id")]
+    if "s8_confirm" in artifact_steps:
+        return True
+    event_steps = [canonicalize_step_id(event.get("step_id")) for event in (events or []) if event.get("step_id")]
+    return "s8_confirm" in event_steps
+
+
+def s8_boundary_outcome(events: list[dict[str, Any]], *, artifacts: list[dict[str, Any]] | None = None) -> str | None:
+    if not reached_s8_confirm(artifacts=artifacts, events=events):
+        return None
+    if is_in_scope_online_journey(events):
+        return "converted_online"
+    return "submitted_advisor_lead"
+
 
 
 @dataclass(frozen=True)
@@ -149,15 +193,20 @@ def classify_outcome(events: list[dict[str, Any]]) -> str:
         derived_context = event.get("derived_context", {}) if isinstance(event.get("derived_context", {}), dict) else {}
         if element_key in OUT_OF_SCOPE_ELEMENTS or event.get("action") == "request_advisor":
             return "submitted_advisor_lead"
-        if canonicalize_step_id(event.get("step_id")) == "s8_confirm" and (
-            element_key in ADVISOR_TERMINAL_ELEMENTS
-            or derived_context.get("terminalScreen") == "advisor_handoff"
-            or derived_context.get("screenTitle") == "Berateranfrage"
-        ):
-            return "submitted_advisor_lead"
+        if canonicalize_step_id(event.get("step_id")) == "s8_confirm":
+            if is_in_scope_online_journey(events):
+                return "converted_online"
+            if (
+                element_key in ADVISOR_TERMINAL_ELEMENTS
+                or derived_context.get("terminalScreen") == "advisor_handoff"
+                or derived_context.get("screenTitle") == "Berateranfrage"
+            ):
+                return "submitted_advisor_lead"
         if event.get("event_type") == "purchase_submitted":
             return "converted_online"
         if event.get("action") == "abandon" or event.get("event_type") in {"abandon", "page_close"}:
             return "abandoned"
-    last_step = events[-1].get("step_id") if events else None
-    return "submitted_advisor_lead" if last_step == "s8_confirm" else "abandoned"
+    last_step = canonicalize_step_id(events[-1].get("step_id")) if events else None
+    if last_step == "s8_confirm":
+        return "converted_online" if is_in_scope_online_journey(events) else "submitted_advisor_lead"
+    return "abandoned"

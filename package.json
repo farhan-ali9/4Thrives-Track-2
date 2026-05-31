@@ -14,6 +14,7 @@
     "test": "npm run build --workspace @uniqa-conversion-coach/shared && npm run test --workspaces --if-present",
     "pipeline": "python uniqa_pipeline.py",
     "pipeline:local": "bash ./scripts/run_local_full_loop.sh",
+    "pipeline:submission": "bash ./scripts/run_submission_eval.sh",
     "db:up": "bash ./scripts/db-up.sh",
     "db:down": "bash ./scripts/db-down.sh",
     "db:reset": "bash ./scripts/db-reset.sh",

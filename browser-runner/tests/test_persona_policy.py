@@ -28,7 +28,7 @@ class PersonaPolicyTests(unittest.TestCase):
 
     def test_advisor_handoff_does_not_classify_as_conversion(self):
         outcome = module.classify_outcome([{"step_id": "s3_tariff_choice", "element_key": "premium"}])
-        self.assertEqual(outcome, "advisor_handoff")
+        self.assertEqual(outcome, "submitted_advisor_lead")
 
     def test_live_step_ids_and_aliases_are_supported(self):
         personas = module.load_personas(ROOT / "personas")
@@ -38,11 +38,20 @@ class PersonaPolicyTests(unittest.TestCase):
         self.assertIn("s7_final_price", module.ONLINE_STEPS)
         self.assertIn("s8_confirm", module.ONLINE_STEPS)
 
-    def test_current_live_s8_berateranfrage_counts_as_advisor_handoff(self):
+    def test_in_scope_s8_counts_as_online_conversion(self):
         outcome = module.classify_outcome([
-            {"step_id": "s8_confirm", "element_key": "consultationContact", "derived_context": {"screenTitle": "Berateranfrage"}}
+            {"step_id": "s1_coverage_scope", "element_key": "at_doctor"},
+            {"step_id": "s4_initial_price", "element_key": "start"},
+            {"step_id": "s8_confirm", "element_key": "consultationContact", "derived_context": {"screenTitle": "Berateranfrage"}},
         ])
-        self.assertEqual(outcome, "advisor_handoff")
+        self.assertEqual(outcome, "converted_online")
+
+    def test_out_of_scope_s8_berateranfrage_counts_as_advisor_handoff(self):
+        outcome = module.classify_outcome([
+            {"step_id": "s1_coverage_scope", "element_key": "hospital"},
+            {"step_id": "s8_confirm", "element_key": "consultationContact", "derived_context": {"screenTitle": "Berateranfrage"}},
+        ])
+        self.assertEqual(outcome, "submitted_advisor_lead")
 
     def test_load_personas_ignores_appledouble_sidecars(self):
         with tempfile.TemporaryDirectory() as tmp:
