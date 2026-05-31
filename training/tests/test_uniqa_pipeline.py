@@ -2,11 +2,8 @@ from __future__ import annotations
 
 import contextlib
 import importlib.util
-<<<<<<< HEAD
-import os
-=======
 import io
->>>>>>> a7912106c94e20e2bb4e70342644ca467f9be4e9
+import os
 import sys
 import tempfile
 import unittest

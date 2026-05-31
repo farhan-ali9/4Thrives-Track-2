@@ -10,6 +10,23 @@ from typing import Iterator
 from urllib import error, request
 
 ROOT = Path(__file__).resolve().parent
+FEATHERLESS_CHAT_COMPLETIONS_URL = "https://api.featherless.ai/v1/chat/completions"
+DEFAULT_FEATHERLESS_MODEL = "Qwen/Qwen2.5-7B-Instruct"
+PERSONA_MATRIX = (
+    ("franz", "purchase"),
+    ("franz", "research"),
+    ("franz", "price_sensitive"),
+    ("franz", "advisor_route"),
+    ("judith", "purchase"),
+    ("judith", "research"),
+    ("judith", "price_sensitive"),
+    ("judith", "advisor_route"),
+    ("peter", "purchase"),
+    ("peter", "research"),
+    ("peter", "price_sensitive"),
+    ("peter", "advisor_route"),
+)
+
 sys.path.insert(0, str(ROOT / "browser-runner"))
 sys.path.insert(0, str(ROOT / "evaluation"))
 sys.path.insert(0, str(ROOT / "replay"))
@@ -309,6 +326,44 @@ def cmd_local_full_loop(args: argparse.Namespace) -> dict[str, object]:
         "report": report,
     }
 
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Run UNIQA Conversion Coach browser experiments and local reports.",
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    validate_live = subparsers.add_parser(
+        "validate-live",
+        help="Run a small live-browser validation batch.",
+    )
+    validate_live.add_argument("--execution-mode", choices=["baseline", "coach"], default="baseline")
+    validate_live.add_argument("--sessions", type=int, default=12)
+    validate_live.add_argument("--experiment-id", default="validation")
+    validate_live.add_argument("--output-dir", type=Path, default=None)
+    validate_live.set_defaults(func=cmd_validate_live)
+
+    run_live = subparsers.add_parser(
+        "run-live",
+        help="Run a larger live-browser batch.",
+    )
+    run_live.add_argument("--execution-mode", choices=["baseline", "coach"], default="coach")
+    run_live.add_argument("--sessions", type=int, default=300)
+    run_live.add_argument("--experiment-id", default="bulk")
+    run_live.add_argument("--output-dir", type=Path, default=None)
+    run_live.set_defaults(func=cmd_run_live)
+
+    local_full_loop = subparsers.add_parser(
+        "local-full-loop",
+        help="Run baseline validation, coach validation, bulk runs, and report generation.",
+    )
+    local_full_loop.add_argument("--artifacts-root", type=Path, default=ROOT / "artifacts")
+    local_full_loop.add_argument("--output-dir", type=Path, default=None)
+    local_full_loop.add_argument("--report-output-dir", type=Path, default=None)
+    local_full_loop.add_argument("--experiment-prefix", default="local-full-loop")
+    local_full_loop.add_argument("--validate-sessions", type=int, default=12)
+    local_full_loop.add_argument("--bulk-sessions", type=int, default=300)
+    local_full_loop.set_defaults(func=cmd_local_full_loop)
 
     return parser
 
