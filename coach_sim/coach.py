@@ -145,7 +145,7 @@ class Coach:
 
     def _aggressive(self, step: Step, events: set[Event]) -> Intervention:
         # Intentionally broad for A/B comparison; still avoids duplicate nudges.
-        if step == Step.S3_PERSONAL_DATA:
+        if step == Step.S3_PERSONAL_DATA and self._has_hesitation(events):
             return self._pick_once(Intervention.TRUST_SIGNAL)
         if step == Step.S4_INITIAL_PRICE:
             return self._pick_once(

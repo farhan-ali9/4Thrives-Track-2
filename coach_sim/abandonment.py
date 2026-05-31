@@ -36,6 +36,15 @@ _TAXONOMY: list[tuple[Step, frozenset[Event], str, str]] = [
      "No data is stored until you complete the purchase.' Keep the note under "
      "the field, not in a separate modal."),
 
+    # ── S4: initial price ─────────────────────────────────────────────────
+    (Step.S4_INITIAL_PRICE, frozenset({Event.CANCEL_INTENT}),
+     "User showed clear abandonment intent at the initial price screen — "
+     "hovered Cancel or went inactive without selecting a tariff.",
+     "Add a 'Not sure? Save your quote' CTA that emails the user a resume "
+     "link. This captures users who are price-sensitive but not yet decided, "
+     "giving UNIQA a low-friction retargeting touchpoint without requiring "
+     "an account or commitment."),
+
     # ── S4: initial price ──────────────────────────────────────────────────
     (Step.S4_INITIAL_PRICE, frozenset({Event.OUT_OF_SCOPE_TARIFF, Event.BACK_NAV}),
      "User clicked Opt. Plus or Premium expecting to complete online, discovered "
@@ -141,6 +150,18 @@ _TAXONOMY: list[tuple[Step, frozenset[Event], str, str]] = [
 
 # Fallback when no specific pattern matches.
 _FALLBACK: dict[Step, tuple[str, str]] = {
+    Step.S1_COVERAGE_SCOPE: (
+        "User left at the first step before selecting a coverage type.",
+        "Review the S1 screen for clarity — test whether renaming 'Bei Arztbesuchen' "
+        "to 'Doctor visits & outpatient care' reduces early exits from users who "
+        "are unsure which option applies to them."
+    ),
+    Step.S2_FOR_WHOM: (
+        "User left at the 'for whom' step before selecting themselves or another person.",
+        "Add a brief clarification: 'Select Myself if you are buying for yourself. "
+        "To insure a family member, select Other persons — an advisor will help.' "
+        "This removes ambiguity for users buying for a partner or child."
+    ),
     Step.S3_PERSONAL_DATA: (
         "User left before completing the personal data step.",
         "Investigate whether the social insurance number field is causing "

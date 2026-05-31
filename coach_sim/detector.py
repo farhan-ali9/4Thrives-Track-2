@@ -22,6 +22,7 @@ class Event(str, Enum):
 @dataclass
 class DetectorConfig:
     long_dwell_seconds: float = 25.0
+    price_fixation_seconds: float = 15.0   # lower threshold — price hover is a stronger signal
     price_gap_eur_threshold: float = 3.0
 
 
@@ -46,7 +47,7 @@ class Detector:
             events.append(Event.REPEATED_CHANGE)
         if dwell >= self.cfg.long_dwell_seconds:
             events.append(Event.LONG_DWELL)
-        if SignalKind.PRICE_HOVER in kinds and dwell >= self.cfg.long_dwell_seconds:
+        if SignalKind.PRICE_HOVER in kinds and dwell >= self.cfg.price_fixation_seconds:
             events.append(Event.PRICE_FIXATION)
         if SignalKind.CANCEL_HOVER in kinds or SignalKind.INACTIVITY in kinds:
             events.append(Event.CANCEL_INTENT)
