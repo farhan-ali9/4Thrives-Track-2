@@ -4,6 +4,8 @@
 
 __pycache__/
 *.pyc
+base/
+AGENTS.md
 
 .venv/
 venv/
