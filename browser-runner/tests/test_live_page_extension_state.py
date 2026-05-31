@@ -50,6 +50,29 @@ class ExtensionStateTests(unittest.TestCase):
 
         self.assertTrue(module.wait_for_coach_render(page, timeout_ms=1_000, settle_ms=0))
 
+    def test_wait_for_coach_cycle_accepts_rendered_popup_for_current_step(self):
+        page = FakePage(
+            [
+                {"currentStepId": "s3_quote_basics", "decisionState": "pending", "requestFinishedAt": 0},
+                {"currentStepId": "s4_initial_price", "decisionState": "rendered", "playId": "price_reframe", "requestFinishedAt": 2_000},
+            ]
+        )
+
+        state = module.wait_for_coach_cycle(page, step_id="s4_initial_price", entered_at=1_000, timeout_ms=1_000, settle_ms=0)
+        self.assertEqual(state["decisionState"], "rendered")
+        self.assertEqual(state["playId"], "price_reframe")
+
+    def test_wait_for_coach_cycle_accepts_empty_result_for_current_step(self):
+        page = FakePage(
+            [
+                {"currentStepId": "s4_initial_price", "decisionState": "pending", "requestFinishedAt": 0},
+                {"currentStepId": "s4_initial_price", "decisionState": "empty", "requestFinishedAt": 2_000},
+            ]
+        )
+
+        state = module.wait_for_coach_cycle(page, step_id="s4_initial_price", entered_at=1_000, timeout_ms=1_000, settle_ms=0)
+        self.assertEqual(state["decisionState"], "empty")
+
 
 if __name__ == "__main__":
     unittest.main()

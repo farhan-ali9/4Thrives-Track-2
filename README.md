@@ -1,14 +1,14 @@
 # UNIQA Conversion Coach
 
 Workspace for the live Chrome extension, the deterministic runtime API,
-and the original simulator/demo assets.
+and the live browser runner used for baseline-vs-coach bulk runs.
 
 ## Packages
 
 - `extension/`: Chrome extension that classifies the live UNIQA calculator into route families and stages, then renders one runtime decision at a time.
 - `coach-api/`: Fastify + Prisma backend exposing the clean runtime endpoints for decisions, outcomes, and session replay.
 - `admin-portal/`: Legacy admin UI kept in the workspace but no longer required by the MVP runtime.
-- `shared/`: Shared runtime contracts and legacy policy artifacts still used by simulation tooling.
+- `shared/`: Shared runtime contracts used by the extension and runtime API.
 - `coach_sim/`: Simulation backend used for the hackathon demo and synthetic evaluation.
 - `streamlit_app/`: Streamlit demo UI for the simulator.
 
@@ -93,7 +93,14 @@ Important behavior:
 ```bash
 npm run build
 npm test
-python -m unittest browser-runner/tests/test_llm_persona.py training/tests/test_build_live_datasets.py training/tests/test_user_policy.py training/tests/test_uniqa_pipeline.py
+python3 -m unittest \
+  browser-runner/tests/test_backend_client.py \
+  browser-runner/tests/test_live_page_extension_state.py \
+  browser-runner/tests/test_mock_runner.py \
+  browser-runner/tests/test_run_batch.py \
+  training/tests/test_uniqa_pipeline.py \
+  evaluation/tests/test_metrics.py \
+  evaluation/tests/test_report_bulk_runs.py
 ```
 
 `npm test` rebuilds the shared workspace first so the extension and backend
@@ -108,20 +115,20 @@ npm run test:live
 
 ## Live Simulation CLI
 
-The repo now exposes one CLI for live simulation, dataset building, training, evaluation, and optional Leonardo submission:
+The active CLI is intentionally small and only supports live baseline/coach runs plus offline artifact reporting:
 
 ```bash
 ./uniqa-pipeline validate-live --execution-mode baseline
 ./uniqa-pipeline validate-live --execution-mode coach
 ./uniqa-pipeline run-live --execution-mode coach --sessions 300
 ./uniqa-pipeline local-full-loop --validate-sessions 12 --bulk-sessions 300
-./uniqa-pipeline build-datasets --traces artifacts/browser-runs
-./uniqa-pipeline train-user-policy
-./uniqa-pipeline train-coach-ranker
-./uniqa-pipeline evaluate --runner-mode validation
+python3 evaluation/report_bulk_runs.py \
+  --baseline artifacts/browser-runs/<run>/baseline-bulk \
+  --coach artifacts/browser-runs/<run>/coach-bulk \
+  --output-dir artifacts/reports/<run>
 ```
 
-Trace files now include runner-owned LLM decision logs, per-step screenshots and DOM snapshots, and a normalized `run_mode` / `instrumentation_mode` split so baseline and coached sessions can be used together.
+Trace files now include runner-owned `events`, `llm_decisions`, per-step screenshots and DOM snapshots, `runtime_trace` for coach sessions, and `coach_render_log` so popup timing can be audited offline.
 
 The local-machine workflow is now the primary path:
 
@@ -149,8 +156,13 @@ The App Platform template expects:
 
 Update `.do/app.yaml` with the real GitHub repo before deploying.
 
-## Known Limitation
+## Reporting Outputs
 
-The verified live page map still covers steps 1-6. Steps `s7_final_price` and
-`s8_confirm` remain disabled until the live UNIQA DOM for those screens is
-re-verified and stable enough to support selectors without brittle assumptions.
+`evaluation/report_bulk_runs.py` writes:
+
+- `summary.json`
+- `summary.md`
+- `outcomes.svg`
+- `dropoffs.svg`
+- `popup_rendering.svg`
+- `index.html`

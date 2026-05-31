@@ -106,12 +106,18 @@ async function bootstrap(): Promise<void> {
   let responseState: RuntimeEventResponse | null = null;
 
   async function emit(event: NormalizedEvent): Promise<RuntimeEventResponse> {
+    if (!event.type.startsWith("coach_")) {
+      injector.beginDecisionCycle(event.pageStepId);
+    }
     const response = await sendRuntimeMessage<RuntimeEventResponse>({
       event,
       type: "uniqa:event",
       url: window.location.href,
     });
     if (!response) {
+      if (!event.type.startsWith("coach_")) {
+        injector.finishDecisionCycle(event.pageStepId, "error");
+      }
       log.warn("No runtime response for event; using empty fallback", {
         pageStepId: event.pageStepId,
         type: event.type,
@@ -171,7 +177,7 @@ async function bootstrap(): Promise<void> {
         type: event.type,
       });
       if (event.type === "step_enter") {
-        injector.clear();
+        injector.clear(event.step?.pageStepId ?? null);
       }
 
       const runtimeEvent = buildObserverEvent(init.sessionId, event);
@@ -180,12 +186,18 @@ async function bootstrap(): Promise<void> {
       if (response.decision) {
         await renderDecision(response.decision, event.derivedContext);
       } else if (response.apiStatus.state === "connected") {
+        if (!event.type.startsWith("coach_")) {
+          injector.finishDecisionCycle(event.step?.pageStepId ?? null, "empty");
+        }
         log.debug("API reachable, no runtime decision for this event", {
           step: event.step?.pageStepId ?? null,
           type: event.type,
         });
         injector.addLogMessage("API reachable, no runtime decision for this event");
       } else {
+        if (!event.type.startsWith("coach_")) {
+          injector.finishDecisionCycle(event.step?.pageStepId ?? null, "error");
+        }
         log.warn("Runtime API not connected for event", {
           apiState: response.apiStatus.state,
           message: response.apiStatus.message,
@@ -210,12 +222,18 @@ async function bootstrap(): Promise<void> {
         if (response.decision) {
           await renderDecision(response.decision, interaction.derivedContext);
         } else if (response.apiStatus.state === "connected") {
+          if (!interaction.type.startsWith("coach_")) {
+            injector.finishDecisionCycle(observer.getCurrentStep()?.pageStepId ?? null, "empty");
+          }
           log.debug("API reachable, no runtime decision for this interaction", {
             elementKey: interaction.elementKey,
             type: interaction.type,
           });
           injector.addLogMessage("API reachable, no runtime decision for this interaction");
         } else {
+          if (!interaction.type.startsWith("coach_")) {
+            injector.finishDecisionCycle(observer.getCurrentStep()?.pageStepId ?? null, "error");
+          }
           log.warn("Runtime API not connected for interaction", {
             apiState: response.apiStatus.state,
             message: response.apiStatus.message,

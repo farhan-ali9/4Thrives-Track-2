@@ -33,6 +33,34 @@ describe("DomInjector", () => {
       document.querySelector("#uniqa-conversion-coach-root")?.shadowRoot?.textContent ?? "",
     ).toContain("Preis eingeordnet");
   });
+
+  test("publishes popup lifecycle state for the browser runner", () => {
+    const injector = new DomInjector(() => undefined, async () => ({
+      role: "assistant",
+      content: "ok",
+    }), true, "test-model", ["test-model"]);
+
+    injector.clear("s3_quote_basics");
+    injector.beginDecisionCycle("s4_initial_price");
+    injector.render(makeDecision(), makeStep());
+
+    const state = (window as Window & {
+      __UNIQA_COACH_STATE__?: {
+        cardCount: number;
+        currentStepId: string | null;
+        decisionState: string;
+        playId: string | null;
+        requestFinishedAt: number;
+        requestStartedAt: number;
+      };
+    }).__UNIQA_COACH_STATE__;
+
+    expect(state?.currentStepId).toBe("s4_initial_price");
+    expect(state?.decisionState).toBe("rendered");
+    expect(state?.playId).toBe("price_reframe");
+    expect(state?.cardCount).toBe(1);
+    expect((state?.requestFinishedAt ?? 0) >= (state?.requestStartedAt ?? 0)).toBe(true);
+  });
 });
 
 function makeDecision(): JourneyDecision {

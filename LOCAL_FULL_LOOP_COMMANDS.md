@@ -1,6 +1,6 @@
 # Local Full Loop Commands
 
-This is the local-machine path for the full UNIQA simulation and training loop using Featherless as the LLM provider.
+This is the local-machine path for the simplified UNIQA live baseline/coach loop using Featherless as the LLM provider.
 
 ## 1. Install Dependencies
 
@@ -86,40 +86,27 @@ All raw traces land under:
 artifacts/browser-runs
 ```
 
-## 6. Build Datasets
+## 6. Build The Bulk Report
 
 ```bash
-./uniqa-pipeline build-datasets --traces artifacts/browser-runs
+python3 evaluation/report_bulk_runs.py \
+  --baseline artifacts/browser-runs/<experiment-prefix>/baseline-bulk \
+  --coach artifacts/browser-runs/<experiment-prefix>/coach-bulk \
+  --output-dir artifacts/reports/<experiment-prefix>
 ```
 
 Outputs:
 
 ```bash
-artifacts/datasets/user-policy.jsonl
-artifacts/datasets/coach-ranking.jsonl
+artifacts/reports/<experiment-prefix>/summary.json
+artifacts/reports/<experiment-prefix>/summary.md
+artifacts/reports/<experiment-prefix>/outcomes.svg
+artifacts/reports/<experiment-prefix>/dropoffs.svg
+artifacts/reports/<experiment-prefix>/popup_rendering.svg
+artifacts/reports/<experiment-prefix>/index.html
 ```
 
-## 7. Train Models
-
-```bash
-./uniqa-pipeline train-user-policy
-./uniqa-pipeline train-coach-ranker
-```
-
-Outputs:
-
-```bash
-artifacts/training/user-policy.json
-artifacts/training/frequency-ranker.json
-```
-
-## 8. Evaluate
-
-```bash
-./uniqa-pipeline evaluate --runner-mode validation
-```
-
-## 9. One-Command Full Loop
+## 7. One-Command Full Loop
 
 If you want the full local pipeline in one command:
 
@@ -132,7 +119,6 @@ Optional overrides:
 ```bash
 LOCAL_VALIDATE_SESSIONS=12 \
 LOCAL_BULK_SESSIONS=300 \
-LOCAL_EVAL_SESSIONS_PER_MODE=6 \
 EXPERIMENT_PREFIX=local-uniqa-run \
 bash scripts/run_local_full_loop.sh
 ```
@@ -144,22 +130,17 @@ baseline validation
 coach validation
 baseline bulk
 coach bulk
-dataset build
-user-policy training
-coach-ranker training
-evaluation
+bulk report
 ```
 
 and stores run-specific outputs under:
 
 ```bash
 artifacts/browser-runs/<experiment-prefix>
-artifacts/datasets/<experiment-prefix>
-artifacts/training/<experiment-prefix>
-artifacts/evaluation-experiments/<experiment-prefix>
+artifacts/reports/<experiment-prefix>
 ```
 
-## 10. Direct CLI Equivalents
+## 8. Direct CLI Equivalents
 
 ```bash
 ./uniqa-pipeline validate-live --execution-mode baseline --sessions 12

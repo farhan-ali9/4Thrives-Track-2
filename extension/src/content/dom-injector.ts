@@ -263,6 +263,20 @@ interface ChatRequestPayload {
   model?: string;
 }
 
+interface CoachRuntimeState {
+  actionable: boolean;
+  apiState: CoachApiStatus["state"];
+  cardCount: number;
+  currentStepId: string | null;
+  decisionState: "idle" | "pending" | "rendered" | "empty" | "error";
+  initialized: boolean;
+  lastRenderAt: number;
+  playId: string | null;
+  renderState: "idle" | "pending" | "rendered" | "empty" | "error";
+  requestFinishedAt: number;
+  requestStartedAt: number;
+}
+
 export class DomInjector {
   private readonly root: HTMLDivElement;
   private readonly shadow: ShadowRoot;
@@ -286,6 +300,19 @@ export class DomInjector {
   private currentDecision: JourneyDecision | null = null;
   private chatOpen = false;
   private chatMessagesState: ChatMessage[] = [];
+  private runtimeState: CoachRuntimeState = {
+    actionable: false,
+    apiState: "starting",
+    cardCount: 0,
+    currentStepId: null,
+    decisionState: "idle",
+    initialized: true,
+    lastRenderAt: 0,
+    playId: null,
+    renderState: "idle",
+    requestFinishedAt: 0,
+    requestStartedAt: 0,
+  };
 
   constructor(
     onInteraction: (interaction: RenderInteraction) => void,
@@ -386,17 +413,52 @@ export class DomInjector {
 
     this.renderChatPrompts([]);
     this.renderMessages();
+    this.syncRuntimeState();
   }
 
-  clear(): void {
+  clear(stepId: string | null = null): void {
     this.currentDecision = null;
     this.cardWrap.replaceChildren();
+    this.setRuntimeState({
+      actionable: false,
+      cardCount: 0,
+      currentStepId: stepId,
+      decisionState: "idle",
+      playId: null,
+      renderState: "idle",
+    });
   }
 
   updateStatus(status: CoachApiStatus): void {
     this.statusPill.dataset.state = status.state;
     this.statusPill.textContent = `UNIQA Runtime: ${status.state}`;
+    this.setRuntimeState({
+      apiState: status.state,
+    });
     this.addLogMessage(status.message);
+  }
+
+  beginDecisionCycle(stepId: string | null): void {
+    this.setRuntimeState({
+      actionable: false,
+      currentStepId: stepId,
+      decisionState: "pending",
+      playId: null,
+      renderState: "pending",
+      requestStartedAt: Date.now(),
+    });
+  }
+
+  finishDecisionCycle(stepId: string | null, result: "empty" | "error"): void {
+    this.setRuntimeState({
+      actionable: false,
+      cardCount: 0,
+      currentStepId: stepId,
+      decisionState: result,
+      playId: null,
+      renderState: result,
+      requestFinishedAt: Date.now(),
+    });
   }
 
   addLogMessage(message: string): void {
@@ -410,7 +472,7 @@ export class DomInjector {
   }
 
   render(decision: JourneyDecision, step: ResolvedStep | null): JourneyDecision | null {
-    this.clear();
+    this.clear(step?.pageStepId ?? null);
     this.currentDecision = decision;
     this.renderCard(decision);
     this.renderChatPrompts(
@@ -418,6 +480,16 @@ export class DomInjector {
         .filter((mutation) => mutation.kind === "chat_link" && mutation.label && mutation.prompt)
         .map((mutation) => ({ label: mutation.label!, prompt: mutation.prompt! })),
     );
+    this.setRuntimeState({
+      actionable: Boolean(decision.cards[0]?.cta),
+      cardCount: decision.cards.length,
+      currentStepId: step?.pageStepId ?? null,
+      decisionState: "rendered",
+      lastRenderAt: Date.now(),
+      playId: decision.playId,
+      renderState: "rendered",
+      requestFinishedAt: Date.now(),
+    });
     return decision;
   }
 
@@ -454,6 +526,14 @@ export class DomInjector {
       dismiss.textContent = "Ausblenden";
       dismiss.addEventListener("click", () => {
         this.cardWrap.replaceChildren();
+        this.setRuntimeState({
+          actionable: false,
+          cardCount: 0,
+          decisionState: "empty",
+          playId: null,
+          renderState: "empty",
+          requestFinishedAt: Date.now(),
+        });
         this.onInteraction({
           cta: null,
           decision,
@@ -552,5 +632,32 @@ export class DomInjector {
   private setChatOpen(open: boolean): void {
     this.chatOpen = open;
     this.chatPanel.dataset.open = open ? "true" : "false";
+  }
+
+  private setRuntimeState(next: Partial<CoachRuntimeState>): void {
+    this.runtimeState = {
+      ...this.runtimeState,
+      ...next,
+    };
+    this.syncRuntimeState();
+  }
+
+  private syncRuntimeState(): void {
+    const serialized = {
+      ...this.runtimeState,
+    };
+    (window as Window & { __UNIQA_COACH_STATE__?: CoachRuntimeState }).__UNIQA_COACH_STATE__ =
+      serialized;
+    this.root.dataset.initialized = String(serialized.initialized);
+    this.root.dataset.apiState = serialized.apiState;
+    this.root.dataset.currentStepId = serialized.currentStepId ?? "";
+    this.root.dataset.decisionState = serialized.decisionState;
+    this.root.dataset.cardCount = String(serialized.cardCount);
+    this.root.dataset.actionable = String(serialized.actionable);
+    this.root.dataset.playId = serialized.playId ?? "";
+    this.root.dataset.lastRenderAt = String(serialized.lastRenderAt);
+    this.root.dataset.requestStartedAt = String(serialized.requestStartedAt);
+    this.root.dataset.requestFinishedAt = String(serialized.requestFinishedAt);
+    this.root.dataset.renderState = serialized.renderState;
   }
 }

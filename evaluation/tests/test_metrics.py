@@ -23,12 +23,13 @@ class MetricsTests(unittest.TestCase):
                 ],
             },
             {
-                "terminal_outcome": "advisor_handoff",
+                "terminal_outcome": "submitted_advisor_lead",
                 "metadata": {"persona_id": "peter", "intention": "orientation"},
                 "events": [
                     {"step_id": "s3_quote_basics", "event_type": "out_of_scope_selected", "element_key": "premium"},
                     {"step_id": "s3_quote_basics", "event_type": "intervention_dismissed", "derived_context": {"intervention_kind": "advisor_handoff", "eligible_for_intervention": True}, "derived_signals": {"annoyed": True}},
                 ],
+                "coach_render_log": [{"step_id": "s3_quote_basics", "decision_state": "rendered", "rendered": True}],
             },
             {
                 "terminal_outcome": "abandoned",
@@ -37,11 +38,12 @@ class MetricsTests(unittest.TestCase):
                     {"step_id": "s5_add_ons", "event_type": "selector_missing"},
                     {"step_id": "s5_add_ons", "event_type": "backend_timeout"},
                 ],
+                "coach_render_log": [{"step_id": "s5_add_ons", "decision_state": "timeout", "rendered": False}],
             },
         ]
         result = metrics.compute_metrics(traces)
         self.assertEqual(result["online_conversion_rate"], 1 / 3)
-        self.assertEqual(result["advisor_handoff_count"], 1)
+        self.assertEqual(result["advisor_lead_count"], 1)
         self.assertEqual(result["s5_addon_dropoff"], 1)
         self.assertEqual(result["advisor_routing_correctness"], 1.0)
         self.assertEqual(result["intervention_count"], 2)
@@ -52,6 +54,8 @@ class MetricsTests(unittest.TestCase):
         self.assertEqual(result["backend_timeout_rate"], 1 / 3)
         self.assertEqual(result["inference_latency_ms_avg"], 120)
         self.assertEqual(result["conversion_by_intention"]["purchase"], 1.0)
+        self.assertEqual(result["popup_render_rate"], 0.5)
+        self.assertEqual(result["popup_timeout_count"], 1)
 
     def test_legacy_s5_step_alias_counts_for_dropoff(self):
         result = metrics.compute_metrics([

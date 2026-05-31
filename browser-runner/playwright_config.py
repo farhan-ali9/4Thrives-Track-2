@@ -73,7 +73,6 @@ class BrowserRunConfig:
     headless: bool = False
     page_map_version: str = "live-uniqa-v1"
     extension_build_id: str = "local"
-    model_version_or_policy: str = "rule-based"
     execution_mode: str = "coach"
     llm_api_url: str = DEFAULT_FEATHERLESS_CHAT_URL
     llm_model: str = DEFAULT_FEATHERLESS_MODEL
@@ -84,10 +83,7 @@ class BrowserRunConfig:
     def from_env(cls) -> "BrowserRunConfig":
         extension = os.getenv("EXTENSION_DIST")
         resolved_extension = Path(extension).expanduser().resolve() if extension else _default_extension_path()
-        model_version = os.getenv("MODEL_VERSION_OR_POLICY", "rule-based")
-        execution_mode = os.getenv("RUNNER_EXECUTION_MODE")
-        if not execution_mode:
-            execution_mode = "baseline" if model_version == "baseline-no-coach" else "coach"
+        execution_mode = os.getenv("RUNNER_EXECUTION_MODE", "coach")
         return cls(
             site_url=os.getenv("UNIQA_CALCULATOR_URL", LIVE_UNIQA_URL),
             backend_url=os.getenv("COACH_API_URL", "http://127.0.0.1:8787"),
@@ -96,7 +92,6 @@ class BrowserRunConfig:
             headless=os.getenv("RUNNER_HEADLESS", "0") == "1",
             page_map_version=os.getenv("PAGE_MAP_VERSION", "live-uniqa-v1"),
             extension_build_id=os.getenv("EXTENSION_BUILD_ID", "local"),
-            model_version_or_policy=model_version,
             execution_mode=execution_mode,
             llm_api_url=os.getenv("LLM_API_URL") or os.getenv("LLM_GATEWAY_URL") or DEFAULT_FEATHERLESS_CHAT_URL,
             llm_model=os.getenv("LLM_MODEL") or os.getenv("LLM_DEFAULT_MODEL") or os.getenv("VITE_FEATHERLESS_MODEL") or DEFAULT_FEATHERLESS_MODEL,
