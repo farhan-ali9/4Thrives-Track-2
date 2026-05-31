@@ -21,11 +21,38 @@ load_local_pipeline_env() {
   export LLM_APP_TITLE="${LLM_APP_TITLE:-UNIQA Conversion Coach Runner}"
 }
 
+_is_local_llm() {
+  if [[ "${LLM_PROVIDER:-}" == "local" ]]; then
+    return 0
+  fi
+  case "${LLM_API_URL:-}" in
+    *localhost*|*127.0.0.1*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 require_featherless_key() {
   if [[ -z "${FEATHERLESS_API_KEY:-}" ]]; then
     echo "FEATHERLESS_API_KEY is not set. Copy .env.example to .env and add your Featherless key." >&2
     exit 1
   fi
+}
+
+require_llm_provider() {
+  if _is_local_llm; then
+    local models_url="${LLM_API_URL%/chat/completions}/models"
+    if ! curl -fsS "$models_url" >/dev/null; then
+      echo "Ollama is not reachable at $models_url." >&2
+      echo "Start it with 'ollama serve' and pull your model with 'ollama pull ${LLM_MODEL:-qwen2.5:3b-instruct}'." >&2
+      exit 1
+    fi
+    local models_json
+    if models_json="$(curl -fsS "$models_url")" && ! grep -q "\"${LLM_MODEL}\"" <<<"$models_json"; then
+      echo "Warning: LLM_MODEL='${LLM_MODEL}' may not be pulled yet. Run: ollama pull ${LLM_MODEL}" >&2
+    fi
+    return 0
+  fi
+  require_featherless_key
 }
 
 ensure_extension_build() {

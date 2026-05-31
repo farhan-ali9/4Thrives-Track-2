@@ -10,7 +10,7 @@ SESSIONS="${2:-12}"
 EXPERIMENT_ID="${3:-local-validate-${MODE}-$(date +%Y%m%d-%H%M%S)}"
 
 load_local_pipeline_env
-require_featherless_key
+require_llm_provider
 
 if [[ "$MODE" == "coach" ]]; then
   ensure_extension_build

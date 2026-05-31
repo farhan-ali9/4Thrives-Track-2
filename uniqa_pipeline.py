@@ -73,7 +73,31 @@ def _assert_validation_gate(name: str, summary: dict[str, object], expected_sess
         )
 
 
+def _is_local_llm_endpoint() -> bool:
+    if os.getenv("LLM_PROVIDER", "").strip().lower() == "local":
+        return True
+    api_url = (os.getenv("LLM_API_URL") or os.getenv("LLM_GATEWAY_URL") or "").lower()
+    return "localhost" in api_url or "127.0.0.1" in api_url
+
+
+def _local_ollama_models_url() -> str:
+    api_url = os.getenv("LLM_API_URL") or os.getenv("LLM_GATEWAY_URL") or "http://localhost:11434/v1/chat/completions"
+    base = api_url.rstrip("/")
+    if base.endswith("/chat/completions"):
+        base = base[: -len("/chat/completions")]
+    return f"{base}/models"
+
+
 def _ensure_live_prereqs() -> None:
+    if _is_local_llm_endpoint():
+        models_url = _local_ollama_models_url()
+        if not _healthcheck(models_url):
+            model = os.getenv("LLM_MODEL", "qwen2.5:3b-instruct")
+            raise RuntimeError(
+                f"Local Ollama is not reachable at {models_url}. "
+                f"Start it with 'ollama serve' and pull your model with 'ollama pull {model}'."
+            )
+        return
     if not os.getenv("FEATHERLESS_API_KEY"):
         raise RuntimeError("FEATHERLESS_API_KEY must be set for live browser runs")
 

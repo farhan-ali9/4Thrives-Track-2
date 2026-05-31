@@ -3,9 +3,11 @@ from __future__ import annotations
 import contextlib
 import importlib.util
 import io
+import os
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("uniqa_pipeline", ROOT / "uniqa_pipeline.py")
@@ -40,6 +42,34 @@ class UniqaPipelineParserTests(unittest.TestCase):
         with contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit):
                 parser.parse_args(["train-coach-ranker"])
+
+
+class UniqaPipelineLocalLlmTests(unittest.TestCase):
+    def test_is_local_llm_endpoint_when_provider_local(self):
+        with patch.dict(os.environ, {"LLM_PROVIDER": "local", "LLM_API_URL": "https://api.featherless.ai/v1/chat/completions"}, clear=False):
+            self.assertTrue(module._is_local_llm_endpoint())
+
+    def test_is_local_llm_endpoint_for_localhost_url(self):
+        with patch.dict(os.environ, {"LLM_API_URL": "http://localhost:11434/v1/chat/completions"}, clear=False):
+            os.environ.pop("LLM_PROVIDER", None)
+            self.assertTrue(module._is_local_llm_endpoint())
+
+    def test_is_local_llm_endpoint_for_loopback_url(self):
+        with patch.dict(os.environ, {"LLM_API_URL": "http://127.0.0.1:11434/v1/chat/completions"}, clear=False):
+            os.environ.pop("LLM_PROVIDER", None)
+            self.assertTrue(module._is_local_llm_endpoint())
+
+    def test_is_local_llm_endpoint_false_for_featherless(self):
+        with patch.dict(
+            os.environ,
+            {"LLM_PROVIDER": "remote", "LLM_API_URL": "https://api.featherless.ai/v1/chat/completions"},
+            clear=False,
+        ):
+            self.assertFalse(module._is_local_llm_endpoint())
+
+    def test_local_ollama_models_url(self):
+        with patch.dict(os.environ, {"LLM_API_URL": "http://localhost:11434/v1/chat/completions"}, clear=False):
+            self.assertEqual(module._local_ollama_models_url(), "http://localhost:11434/v1/models")
 
 
 if __name__ == "__main__":

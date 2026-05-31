@@ -84,6 +84,7 @@ class BrowserRunConfig:
         extension = os.getenv("EXTENSION_DIST")
         resolved_extension = Path(extension).expanduser().resolve() if extension else _default_extension_path()
         execution_mode = os.getenv("RUNNER_EXECUTION_MODE", "coach")
+        model = os.getenv("LLM_MODEL") or os.getenv("LLM_DEFAULT_MODEL") or os.getenv("VITE_FEATHERLESS_MODEL") or DEFAULT_FEATHERLESS_MODEL
         return cls(
             site_url=os.getenv("UNIQA_CALCULATOR_URL", LIVE_UNIQA_URL),
             backend_url=os.getenv("COACH_API_URL", "http://127.0.0.1:8787"),
@@ -94,7 +95,7 @@ class BrowserRunConfig:
             extension_build_id=os.getenv("EXTENSION_BUILD_ID", "local"),
             execution_mode=execution_mode,
             llm_api_url=os.getenv("LLM_API_URL") or os.getenv("LLM_GATEWAY_URL") or DEFAULT_FEATHERLESS_CHAT_URL,
-            llm_model=os.getenv("LLM_MODEL") or os.getenv("LLM_DEFAULT_MODEL") or os.getenv("VITE_FEATHERLESS_MODEL") or DEFAULT_FEATHERLESS_MODEL,
+            llm_model=model,
             llm_temperature=float(os.getenv("LLM_TEMPERATURE", "0.2")),
             llm_timeout_s=float(os.getenv("LLM_TIMEOUT_S", "30")),
         )

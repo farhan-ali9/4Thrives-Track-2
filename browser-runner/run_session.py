@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
+import logging
+import os
+import sys
 import time
 import uuid
 from dataclasses import asdict, dataclass
@@ -13,6 +15,7 @@ from backend_client import RuntimeApiClient, RuntimeApiError
 from errors import BackendFailure, PageLoadFailure, SelectorFailure
 from event_factory import make_runner_event, make_step_event
 from live_page import (
+    capture_rich_context,
     choose_no_for_question_group,
     derive_context,
     detect_step,
@@ -30,6 +33,26 @@ from playwright_config import BrowserRunConfig, RunnerSafetyConfig
 
 
 ADVISOR_OUTCOME = "submitted_advisor_lead"
+
+logger = logging.getLogger("browser_runner")
+
+
+def configure_logging() -> None:
+    """Attach a stderr handler once so live runs surface progress.
+
+    Level is controlled by ``RUNNER_LOG_LEVEL`` (default INFO).
+    """
+    if getattr(configure_logging, "_done", False):
+        return
+    level_name = os.getenv("RUNNER_LOG_LEVEL", "INFO").upper()
+    level = getattr(logging, level_name, logging.INFO)
+    if not logger.handlers:
+        handler = logging.StreamHandler(sys.stderr)
+        handler.setFormatter(logging.Formatter("%(asctime)s [runner] %(message)s", "%H:%M:%S"))
+        logger.addHandler(handler)
+    logger.setLevel(level)
+    logger.propagate = False
+    configure_logging._done = True  # type: ignore[attr-defined]
 
 
 def _now_ms() -> int:
@@ -204,12 +227,23 @@ def run_mock_session(*, persona_id: str, intention: str, experiment_id: str, see
 
 def _wait_for_step(page: Any, *, timeout_ms: int = 25_000) -> dict[str, Any]:
     started = time.time()
+    polls = 0
     while (time.time() - started) * 1000 < timeout_ms:
         step = detect_step(page)
         if step:
             return step
+        polls += 1
+        if polls % 8 == 0:
+            logger.debug("still no supported step after %.1fs (url=%s)", time.time() - started, _safe_url(page))
         page.wait_for_timeout(250)
-    raise SelectorFailure("Unable to detect a supported UNIQA step before timeout")
+    raise SelectorFailure(f"Unable to detect a supported UNIQA step before timeout (url={_safe_url(page)})")
+
+
+def _safe_url(page: Any) -> str:
+    try:
+        return page.url
+    except Exception:
+        return "unknown"
 
 
 def _append_runner_event(
@@ -419,21 +453,10 @@ def _safe_check(locator: Any) -> None:
         )
 
 
-def _coach_interaction_mode(decision: PersonaDecision) -> str:
-    if decision.action == "abandon":
-        return "dismiss"
-    receptiveness = decision.overlay.coach_receptiveness
-    if receptiveness >= 1.2:
-        return "cta"
-    if receptiveness <= 0.65:
-        return "dismiss"
-    probability = _clamp(int((receptiveness - 0.65) * 100), 15, 85) / 100
-    digest = hashlib.sha256(f"{decision.prompt_hash}:{decision.step_id}:{decision.action}".encode("utf-8")).hexdigest()
-    roll = int(digest[:8], 16) / 0xFFFFFFFF
-    return "cta" if roll < probability else "dismiss"
-
-
 def _try_coach_interaction(page: Any, decision: PersonaDecision, *, read_ms: int = 0) -> str | None:
+    mode = decision.coach_interaction or "ignore"
+    if mode == "ignore":
+        return None
     try:
         text = _coach_overlay_text(page)
     except Exception:
@@ -442,7 +465,6 @@ def _try_coach_interaction(page: Any, decision: PersonaDecision, *, read_ms: int
         return None
     if read_ms > 0:
         page.wait_for_timeout(read_ms)
-    mode = _coach_interaction_mode(decision)
     page.evaluate(
         """
         (mode) => {
@@ -617,9 +639,14 @@ def run_live_session(*, persona_id: str, intention: str, experiment_id: str, see
     except ImportError as exc:
         raise RuntimeError("Playwright is required for live browser sessions") from exc
 
+    configure_logging()
     session_id = f"sess_{uuid.uuid4().hex[:12]}"
     metadata = _metadata(config, experiment_id=experiment_id, persona_id=persona_id, intention=intention, seed=seed)
     profile = _generate_profile(persona_id, seed)
+    logger.info(
+        "session %s start | persona=%s intention=%s seed=%s mode=%s model=%s",
+        session_id, persona_id, intention, seed, config.execution_mode, config.llm_model,
+    )
     llm_driver = LLMPersonaDriver(
         model=config.llm_model,
         api_url=config.llm_api_url,
@@ -652,13 +679,18 @@ def run_live_session(*, persona_id: str, intention: str, experiment_id: str, see
         )
         page = context.pages[0] if context.pages else context.new_page()
         install_runner_shim(page, preferred_session_id=session_id if config.execution_mode == "coach" else None)
+        logger.info("session %s browser launched (headless=%s)", session_id, config.headless)
         try:
             try:
+                logger.info("navigating to %s", config.site_url)
                 page.goto(config.site_url, wait_until="domcontentloaded", timeout=45_000)
+                logger.info("page loaded (url=%s)", _safe_url(page))
             except Exception as exc:
                 raise PageLoadFailure(str(exc)) from exc
             dismiss_cookie_banner(page)
+            logger.debug("cookie banner handled")
             if config.execution_mode == "coach":
+                logger.info("waiting for coach extension to become ready...")
                 ready = wait_for_extension_ready(
                     page,
                     timeout_ms=max(5_000, safety.coach_overlay_timeout_ms * 3),
@@ -666,15 +698,26 @@ def run_live_session(*, persona_id: str, intention: str, experiment_id: str, see
                 )
                 if not ready:
                     state = read_extension_state(page)
+                    logger.error("coach extension did not become ready: %s", state)
                     raise PageLoadFailure(f"Coach extension did not become ready: {state}")
+                logger.info("coach extension ready")
 
             visited_step_count = 0
             terminal_outcome: str | None = None
             while visited_step_count < 12 and terminal_outcome is None:
+                logger.info("waiting for next step...")
                 step = _wait_for_step(page)
                 step_id = step["pageStepId"]
                 entered_at = _now_ms() - 1_000
                 current_context = derive_context(page, step, current_context)
+                current_context["rich"] = capture_rich_context(page)
+                rich = current_context["rich"] if isinstance(current_context.get("rich"), dict) else {}
+                logger.info(
+                    "step %d detected: %s | rich: headings=%d tariffs=%d options=%d prices=%d tooltips=%d",
+                    visited_step_count + 1, step_id,
+                    len(rich.get("headings", [])), len(rich.get("tariffs", [])),
+                    len(rich.get("options", [])), len(rich.get("prices", [])), len(rich.get("tooltips", [])),
+                )
                 artifacts.append(_step_artifacts(page, session_dir=session_dir, step_id=step_id, index=visited_step_count, context=current_context))
                 events.append(make_step_event(session_id=session_id, step_id=step_id, event_type="step_enter", runner_metadata=metadata))
 
@@ -689,6 +732,12 @@ def run_live_session(*, persona_id: str, intention: str, experiment_id: str, see
                         settle_ms=safety.coach_settle_ms,
                     )
                     waited_ms = _now_ms() - wait_started
+                    logger.info(
+                        "coach cycle: state=%s play_id=%s waited=%dms",
+                        coach_state.get("decisionState") if coach_state else "timeout",
+                        coach_state.get("playId") if coach_state else None,
+                        waited_ms,
+                    )
                     coach_render_log.append(
                         {
                             "step_id": step_id,
@@ -710,6 +759,9 @@ def run_live_session(*, persona_id: str, intention: str, experiment_id: str, see
                             metadata=metadata,
                         )
 
+                coach_rendered = bool(coach_state and coach_state.get("decisionState") == "rendered")
+                coach_card_text = _coach_overlay_text(page) if coach_rendered else ""
+                logger.info("asking model for decision on %s ...", step_id)
                 decision = llm_driver.decide(
                     persona_id=persona_id,
                     intention=intention,
@@ -718,7 +770,17 @@ def run_live_session(*, persona_id: str, intention: str, experiment_id: str, see
                     step_context=current_context,
                     history=llm_decisions,
                     coach_interaction_seen=coach_interaction_seen,
+                    coach_card_text=coach_card_text,
+                    coach_present=bool(coach_rendered and coach_card_text),
                 )
+                logger.info(
+                    "decision: action=%s coach=%s fallback=%s latency=%dms dwell=%dms",
+                    decision.action, decision.coach_interaction, decision.fallback_used,
+                    decision.latency_ms, decision.dwell_ms,
+                )
+                if decision.fallback_used:
+                    logger.warning("model call did not yield a usable action; used rule-based fallback for %s", step_id)
+                logger.debug("reasoning: %s", decision.reasoning)
                 llm_decisions.append(
                     decision.to_trace_row(
                         decision_id=f"lld_{uuid.uuid4().hex[:12]}",
@@ -731,6 +793,7 @@ def run_live_session(*, persona_id: str, intention: str, experiment_id: str, see
                     interaction = _try_coach_interaction(page, decision, read_ms=safety.coach_read_ms)
                     coach_interaction_seen = coach_interaction_seen or interaction is not None
                     if interaction:
+                        logger.info("coach interaction performed: %s", interaction)
                         _append_runner_event(
                             events,
                             session_id=session_id,
@@ -743,6 +806,7 @@ def run_live_session(*, persona_id: str, intention: str, experiment_id: str, see
                         )
                         page.wait_for_timeout(safety.post_action_settle_ms)
 
+                logger.info("executing action '%s' on %s", decision.action, step_id)
                 execution = _execute_step_action(
                     page,
                     step_id=step_id,
@@ -751,6 +815,7 @@ def run_live_session(*, persona_id: str, intention: str, experiment_id: str, see
                     safety=safety,
                     coach_mode=config.execution_mode == "coach",
                 )
+                logger.info("executed %s -> element_key=%s", step_id, execution.get("element_key"))
                 _update_journey_state(journey_state, step_id=step_id, element_key=execution.get("element_key"))
                 _post_action_settle(page, safety, coach_mode=config.execution_mode == "coach")
                 _append_runner_event(
@@ -784,6 +849,7 @@ def run_live_session(*, persona_id: str, intention: str, experiment_id: str, see
             if terminal_outcome is None:
                 terminal_outcome = ADVISOR_OUTCOME if final_step and final_step["pageStepId"] == "s8_confirm" else "abandoned"
             terminal_outcome = _normalize_outcome(terminal_outcome)
+            logger.info("session %s finished | outcome=%s after %d steps", session_id, terminal_outcome, visited_step_count)
 
             runtime_trace: dict[str, Any] | None = None
             if config.execution_mode == "coach":
@@ -816,6 +882,7 @@ def run_live_session(*, persona_id: str, intention: str, experiment_id: str, see
                 coach_render_log=coach_render_log,
             )
         finally:
+            logger.debug("closing browser for session %s", session_id)
             context.close()
 
 
