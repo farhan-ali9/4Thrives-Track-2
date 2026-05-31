@@ -17,42 +17,43 @@ spec.loader.exec_module(module)
 
 
 class BackendClientTests(unittest.TestCase):
-    def test_event_payload_defaults_match_farhan_v2_contract(self):
-        payload = module.normalize_event_payload({
-            "event_id": "evt_1",
-            "session_id": "sess_1",
-            "ts": 123.0,
-            "event_type": "inactivity",
+    def test_outcome_payload_matches_runtime_contract(self):
+        payload = module.normalize_outcome_payload({
+            "sessionId": "sess_1",
+            "routeFamily": "online_doctor",
+            "terminalStage": "done",
+            "outcome": "submitted_advisor_lead",
+            "decidedAt": 123.0,
         })
-        self.assertEqual(payload["schema_version"], "v1")
-        self.assertEqual(payload["source"], "browser-runner")
-        self.assertEqual(payload["privacy_level"], "anonymous")
-        self.assertEqual(payload["raw_value"], {})
-        self.assertEqual(payload["ts"], 123)
+        self.assertEqual(payload["sessionId"], "sess_1")
+        self.assertEqual(payload["routeFamily"], "online_doctor")
+        self.assertEqual(payload["terminalStage"], "done")
+        self.assertEqual(payload["outcome"], "submitted_advisor_lead")
+        self.assertEqual(payload["decidedAt"], 123)
 
     def test_invalid_outcome_rejected_before_backend_call(self):
         with self.assertRaises(ValueError):
-            module.normalize_outcome_payload({"session_id": "sess_1", "outcome": "converted"})
+            module.normalize_outcome_payload({"sessionId": "sess_1", "routeFamily": "online_doctor", "terminalStage": "done", "outcome": "converted", "decidedAt": 1})
 
-    def test_client_routes_requests_to_v2_endpoints(self):
+    def test_client_routes_requests_to_runtime_endpoints(self):
         calls = []
 
         def transport(method, url, payload, timeout):
             calls.append((method, url, payload, timeout))
             return {"ok": True}
 
-        client = module.CoachApiClient("http://backend.test/", timeout=3.5, transport=transport)
-        client.post_event({"event_id": "evt_1", "session_id": "sess_1", "ts": 1, "event_type": "click"})
-        client.request_inference("sess_1")
-        client.post_exposure({"exposure_id": "exp_1", "session_id": "sess_1", "decision_id": "dec_1", "action_id": "action_1"})
-        client.post_outcome({"session_id": "sess_1", "outcome": "abandoned"})
+        client = module.RuntimeApiClient("http://backend.test/", timeout=3.5, transport=transport)
+        client.post_outcome({
+            "sessionId": "sess_1",
+            "routeFamily": "online_doctor",
+            "terminalStage": "done",
+            "outcome": "abandoned",
+            "decidedAt": 1,
+        })
         client.fetch_session("sess_1")
-        self.assertEqual([call[0] for call in calls], ["POST", "POST", "POST", "POST", "GET"])
-        self.assertTrue(calls[0][1].endswith("/api/v2/events"))
-        self.assertTrue(calls[1][1].endswith("/api/v2/inference"))
-        self.assertTrue(calls[2][1].endswith("/api/v2/exposures"))
-        self.assertTrue(calls[3][1].endswith("/api/v2/outcomes"))
-        self.assertTrue(calls[4][1].endswith("/api/v2/sessions/sess_1"))
+        self.assertEqual([call[0] for call in calls], ["POST", "GET"])
+        self.assertTrue(calls[0][1].endswith("/api/runtime/outcome"))
+        self.assertTrue(calls[1][1].endswith("/api/runtime/sessions/sess_1"))
 
     def test_gzip_response_is_decoded(self):
         payload = gzip.compress(b'{"ok":true}')
@@ -75,7 +76,7 @@ class BackendClientTests(unittest.TestCase):
         original = module.urlopen
         module.urlopen = lambda request, timeout=0: FakeResponse()
         try:
-            parsed = module._urllib_transport("GET", "http://backend.test/api/v2/sessions/sess_1", None, 3.0)
+            parsed = module._urllib_transport("GET", "http://backend.test/api/runtime/sessions/sess_1", None, 3.0)
         finally:
             module.urlopen = original
         self.assertEqual(parsed, {"ok": True})

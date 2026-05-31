@@ -23,26 +23,44 @@ const featherlessModelOptions = uniqueModels([
   ...parseModelList(process.env.LESS_MODEL_OPTIONS),
 ]);
 
+// MV3 content scripts are loaded as classic scripts and cannot use `import`.
+// Building each entry in its own pass with `inlineDynamicImports` keeps every
+// entry fully self-contained (no shared chunks), so content.js never emits an
+// import statement. BUILD_TARGET selects which entry the current pass builds.
+type BuildTarget = "content" | "background";
+
+function resolveBuildTarget(): BuildTarget | null {
+  const target = process.env.BUILD_TARGET;
+  return target === "content" || target === "background" ? target : null;
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, rootDir, "");
   const apiOrigins = resolveCoachApiOrigins(env);
+  const target = resolveBuildTarget();
+
+  const entries: Record<BuildTarget, string> = {
+    background: resolve(rootDir, "src/background.ts"),
+    content: resolve(rootDir, "src/content.ts"),
+  };
+  const input = target ? { [target]: entries[target] } : entries;
 
   return {
     build: {
-      emptyOutDir: true,
+      // Only wipe the output on the first (content) pass; later passes append.
+      emptyOutDir: target === null || target === "content",
       outDir: "dist",
       sourcemap: true,
       target: "es2022",
       rollupOptions: {
-        input: {
-          background: resolve(rootDir, "src/background.ts"),
-          content: resolve(rootDir, "src/content.ts"),
-        },
+        input,
         output: {
           assetFileNames: "assets/[name][extname]",
           chunkFileNames: "chunks/[name].js",
           entryFileNames: "[name].js",
           format: "es",
+          // Single-entry passes inline all imports so each script is one file.
+          inlineDynamicImports: target !== null,
         },
       },
     },
@@ -51,7 +69,9 @@ export default defineConfig(({ mode }) => {
       __FEATHERLESS_MODEL__: JSON.stringify(featherlessModel),
       __FEATHERLESS_MODEL_OPTIONS__: JSON.stringify(featherlessModelOptions),
     },
-    plugins: [manifestPlugin(apiOrigins)],
+    // The manifest is emitted on the combined pass or the background pass so it
+    // is written exactly once and never wiped by a later pass.
+    plugins: target === "content" ? [] : [manifestPlugin(apiOrigins)],
     resolve: {
       alias: {
         "@": resolve(rootDir, "src"),

@@ -31,8 +31,8 @@ describe("resolvePageStep", () => {
     const quoteBasics = resolvePageStep(loadFixture("s3_quote_basics.html"));
     const medicalData = resolvePageStep(loadFixture("s6_personal_medical_data.html"));
 
-    expect(quoteBasics?.coachStepId).toBe("s3_personal_data");
-    expect(medicalData?.coachStepId).toBe("s6_health_questions");
+    expect(quoteBasics?.journeyStage).toBe("quote_basics");
+    expect(medicalData?.journeyStage).toBe("health_data");
   });
 
   test("extracts safe derived context on the tariff step", () => {
@@ -41,7 +41,7 @@ describe("resolvePageStep", () => {
     expect(resolved?.pageStepId).toBe("s4_initial_price");
 
     const context = deriveContextFromDocument(doc, resolved, {});
-    expect(context.visiblePrice).toBe(41.3);
+    expect(context.visiblePriceMonthly).toBe(41.3);
     expect(context.selectedTariff).toBeNull();
   });
 
@@ -51,11 +51,11 @@ describe("resolvePageStep", () => {
     expect(resolved?.pageStepId).toBe("s7_final_price");
 
     const context = deriveContextFromDocument(doc, resolved, {
-      visiblePrice: 73.02,
+      visiblePriceMonthly: 73.02,
     });
     expect(context.fieldCompletion).toBe(0.5);
-    expect(context.visiblePrice).toBe(73.02);
-    expect(context.priceDelta).toBe(0);
+    expect(context.visiblePriceMonthly).toBe(73.02);
+    expect(context.priceDeltaMonthly).toBe(0);
   });
 
   test("extracts live-safe context on the terminal advisor-request screen", () => {
@@ -64,11 +64,11 @@ describe("resolvePageStep", () => {
     expect(resolved?.pageStepId).toBe("s8_confirm");
 
     const context = deriveContextFromDocument(doc, resolved, {
-      visiblePrice: 73.02,
+      visiblePriceMonthly: 73.02,
     });
     expect(context.fieldCompletion).toBe(0.25);
-    expect(context.visiblePrice).toBe(73.02);
-    expect(context.priceDelta).toBe(0);
+    expect(context.visiblePriceMonthly).toBe(73.02);
+    expect(context.priceDeltaMonthly).toBe(0);
   });
 
   test("computes price delta against the previous visible price", () => {
@@ -77,10 +77,10 @@ describe("resolvePageStep", () => {
     expect(resolved?.pageStepId).toBe("s5_add_ons");
 
     const context = deriveContextFromDocument(doc, resolved, {
-      visiblePrice: 41.3,
+      visiblePriceMonthly: 41.3,
     });
-    expect(context.visiblePrice).toBe(73.02);
-    expect(context.priceDelta).toBe(31.72);
+    expect(context.visiblePriceMonthly).toBe(73.02);
+    expect(context.priceDeltaMonthly).toBe(31.72);
   });
 
   test("tracks session duration without adding personal data", () => {

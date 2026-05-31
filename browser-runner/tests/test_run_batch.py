@@ -22,6 +22,8 @@ class RunBatchSafetyTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             result = module.run_batch(mode="mock", experiment_id="test", sessions=5, output_dir=Path(tmp), runner=failing_runner)
+            self.assertTrue(Path(result["trace_dir"]).exists())
+            self.assertTrue((Path(result["trace_dir"]) / "batch-summary.json").exists())
         self.assertEqual(result["failures"]["backend"], 3)
         self.assertEqual(result["circuit_breaker"], "backend_failure_limit")
         self.assertEqual(result["failure_log"][0]["failure_type"], "backend")

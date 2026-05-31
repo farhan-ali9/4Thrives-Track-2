@@ -1,5 +1,8 @@
 .git
 .gitignore
+.env
+.env.*
+!.env.example
 .DS_Store
 node_modules
 **/node_modules
@@ -8,7 +11,4 @@ node_modules
 **/test-results
 **/playwright-report
 **/.vite
-coach_sim/results*
-streamlit_app/__pycache__
-coach_sim/__pycache__
-case_materials
+/artifacts

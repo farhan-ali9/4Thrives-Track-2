@@ -1,94 +1,49 @@
 # Browser Runner
 
-Andrii-owned runner entry points for persona-driven UNIQA calculator sessions.
+Playwright sessions for baseline (no extension) vs coach (extension + runtime API) on the live UNIQA calculator.
 
 ## Modes
 
-- `mock`: deterministic local trace generation for unit tests and smoke checks only.
-- `validation`: low-concurrency live browser sessions with screenshots and conservative circuit breakers.
-- `bulk`: capped-concurrency trace generation after validation succeeds.
+| Mode | Purpose |
+|------|---------|
+| `mock` | Deterministic traces for unit tests |
+| `validation` | Small live smoke batch with screenshots |
+| `bulk` | Evaluation batch after validation |
 
-Execution modes inside live runs:
+Execution modes: `baseline` (telemetry shim only) or `coach` (loads extension, posts runtime outcome).
 
-- `baseline`: no extension loaded, but a lightweight runner telemetry shim records comparable interaction events.
-- `coach`: loads the UNIQA extension, routes events into the existing coach API, and fetches the resulting backend session trace.
+## Environment
 
-## Live Requirements
+Set in `.env` (see `.env.example`):
 
-Set these before live runs:
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `EXTENSION_DIST` | `./extension/dist` | Built extension for coach mode |
+| `COACH_API_URL` | `http://127.0.0.1:8787` | Runtime API |
+| `RUNNER_OUTPUT_DIR` | `artifacts/browser-runs` | Trace output |
+| `LLM_PROVIDER` | `local` | `local` (Ollama) or `remote` (Featherless) |
+| `LLM_API_URL` | Ollama or Featherless URL | Persona LLM endpoint |
+| `LLM_MODEL` | `qwen2.5:3b-instruct` | Persona model |
+| `RUNNER_HEADLESS` | `0` | Set `1` for headless bulk |
 
-```bash
-export FEATHERLESS_API_KEY=...
-export EXTENSION_DIST=/absolute/path/to/extension/dist
-export COACH_API_URL=http://127.0.0.1:8787
-export RUNNER_OUTPUT_DIR=artifacts/browser-runs
-export LLM_API_URL=https://api.featherless.ai/v1/chat/completions
-export LLM_MODEL=Qwen/Qwen2.5-7B-Instruct
-```
+Optional tuning: `LLM_TIMEOUT_S`, `LLM_MAX_ATTEMPTS`, `LLM_RETRY_BACKOFF_S`, `RUNNER_LOG_LEVEL`.
 
-Live runs refuse to submit purchases. `s8_confirm` is treated as an observation boundary, not a submission step.
+## Outcome rules
 
-If `EXTENSION_DIST` is unset, the runner now auto-detects a local `extension/dist` build in this repo.
+- In-scope Start/Optimal journeys reaching `s8_confirm` → `converted_online` (observation boundary; no form submit).
+- Hospital, other persons, Opt. Plus/Premium → `submitted_advisor_lead`.
+- Early exit → `abandoned`.
 
-## Safety Breakers
+Patch mislabeled traces: `python3 scripts/patch_s8_trace_outcomes.py <trace-dirs...>`
 
-`run_batch.py` classifies failures into:
+## Key modules
 
-- `selector`: selector drift or missing expected UI
-- `backend`: backend timeout or connection failure
-- `page`: live page load or unclassified browser failure
+- `run_batch.py` — persona matrix scheduling + circuit breakers
+- `run_session.py` — live browser loop
+- `llm_persona.py` — LLM persona driver with policy fallback
+- `persona_policy.py` — rule-based fallback + outcome classification
+- `live_page.py` — step detection + rich page context for the LLM
 
-The result JSON includes `failures`, `failure_log`, and `circuit_breaker` so failed batches can be excluded or debugged before metrics are reported.
+## Trace contents
 
-## LLM Persona Driver
-
-`llm_persona.py` drives the simulated customer with an OpenAI-compatible chat endpoint. The default local path is Featherless:
-
-- persona briefing + seeded overlay
-- current step snapshot and visible price context
-- recent decision history
-- strict JSON action schema with runner-side fallback to the existing persona policy
-
-Default local runner settings:
-
-- calculator URL: `https://www.uniqa.at/rechner/krankenversicherung/`
-- LLM endpoint: `https://api.featherless.ai/v1/chat/completions`
-- model fallback: `Qwen/Qwen2.5-7B-Instruct`
-- optional attribution headers: `LLM_HTTP_REFERER`, `LLM_APP_TITLE`
-
-Each trace stores:
-
-- `run_mode`
-- `instrumentation_mode`
-- `llm_decisions`
-- `artifacts`
-- `shim_events`
-
-
-## Backend V2 Client
-
-`backend_client.py` wraps Farhan's v2 API for runner-side telemetry and replay integration:
-
-- `POST /api/v2/events`
-- `POST /api/v2/inference`
-- `POST /api/v2/exposures`
-- `POST /api/v2/outcomes`
-- `GET /api/v2/sessions/:id`
-
-Payload normalizers default missing optional event fields to the agreed anonymous schema and reject invalid terminal outcomes before network calls.
-
-
-## Event Factory
-
-`event_factory.py` builds canonical v2 event payloads for mock/live runner telemetry. It mirrors David's extension payload shape and derives flags for:
-
-- `tariff_click_oos`
-- `path_oos`
-- `inactivity`
-- `price_hover`
-- `cancel_hover`
-- `scroll`
-- `coach_cta_clicked`
-- `coach_dismissed`
-- `price_changed`
-- `advisor_terminal`
+Each session JSON includes `events`, `llm_decisions`, `artifacts` (screenshots/DOM), `coach_render_log` (coach mode), and `terminal_outcome`.

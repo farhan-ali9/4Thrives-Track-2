@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 source "$ROOT/scripts/local_pipeline_env.sh"
 
 load_local_pipeline_env
-require_featherless_key
+require_llm_provider
 
 (cd "$ROOT" && ./uniqa-pipeline validate-live \
   --execution-mode "${RUNNER_EXECUTION_MODE:-baseline}" \

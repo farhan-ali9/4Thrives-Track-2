@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import time
 from pathlib import Path
 from typing import Any, Callable
 
 from errors import BackendFailure, PageLoadFailure, SelectorFailure
 from playwright_config import BrowserRunConfig, RunnerSafetyConfig
-from run_session import run_live_session, run_mock_session, write_trace
+from run_session import configure_logging, run_live_session, run_mock_session, write_trace
+
+logger = logging.getLogger("browser_runner")
 
 PERSONA_MATRIX = [
     ("franz", "purchase"),
@@ -62,30 +65,62 @@ def run_batch(
     output_dir: Path | None = None,
     runner: RunnerFn | None = None,
 ) -> dict[str, Any]:
+    configure_logging()
     config = BrowserRunConfig.from_env()
     if output_dir:
         config = BrowserRunConfig(**{**config.__dict__, "output_dir": output_dir})
+    batch_output_dir = config.output_dir / experiment_id
+    batch_output_dir.mkdir(parents=True, exist_ok=True)
+    config = BrowserRunConfig(**{**config.__dict__, "output_dir": batch_output_dir})
     safety = RunnerSafetyConfig.for_mode(mode)
     failures: FailureCounts = {"selector": 0, "backend": 0, "page": 0}
     traces = []
     failure_log = []
     selected_runner = runner or _default_runner
 
-    for index in range(min(sessions, safety.max_sessions)):
+    planned = min(sessions, safety.max_sessions)
+    logger.info("batch start: mode=%s sessions=%d (cap=%d) experiment=%s out=%s", mode, planned, safety.max_sessions, experiment_id, batch_output_dir)
+    for index in range(planned):
         persona_id, intention = PERSONA_MATRIX[index % len(PERSONA_MATRIX)]
         seed = index // len(PERSONA_MATRIX) + 1
+        logger.info("session %d/%d: persona=%s intention=%s seed=%s", index + 1, planned, persona_id, intention, seed)
         try:
             trace = selected_runner(persona_id, intention, experiment_id, seed, config, safety)
-            traces.append(str(write_trace(trace, config.output_dir)))
+            traces.append(str(write_trace(trace, batch_output_dir)))
+            logger.info("session %d/%d done -> outcome=%s", index + 1, planned, trace.get("terminal_outcome"))
         except Exception as exc:  # classified below and summarized for evaluation hygiene
             bucket = _classify_failure(exc)
             failures[bucket] += 1
             failure_log.append({"session_index": index, "persona_id": persona_id, "intention": intention, "seed": seed, "failure_type": bucket, "message": str(exc)})
+            logger.warning("session %d/%d FAILED [%s]: %s", index + 1, planned, bucket, exc)
+            logger.debug("session %d failure detail", index + 1, exc_info=True)
         breaker = _circuit_breaker_reason(failures, safety)
         if breaker:
-            return {"experiment_id": experiment_id, "mode": mode, "traces": traces, "failures": failures, "failure_log": failure_log, "circuit_breaker": breaker}
+            logger.error("circuit breaker tripped: %s | failures=%s", breaker, failures)
+            summary = {
+                "experiment_id": experiment_id,
+                "mode": mode,
+                "trace_dir": str(batch_output_dir),
+                "traces": traces,
+                "failures": failures,
+                "failure_log": failure_log,
+                "circuit_breaker": breaker,
+            }
+            (batch_output_dir / "batch-summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True))
+            return summary
         time.sleep(0.05 if mode == "mock" else safety.min_think_ms / 1000)
-    return {"experiment_id": experiment_id, "mode": mode, "traces": traces, "failures": failures, "failure_log": failure_log, "circuit_breaker": None}
+    summary = {
+        "experiment_id": experiment_id,
+        "mode": mode,
+        "trace_dir": str(batch_output_dir),
+        "traces": traces,
+        "failures": failures,
+        "failure_log": failure_log,
+        "circuit_breaker": None,
+    }
+    (batch_output_dir / "batch-summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True))
+    logger.info("batch done: %d traces written, failures=%s", len(traces), failures)
+    return summary
 
 
 def main() -> None:

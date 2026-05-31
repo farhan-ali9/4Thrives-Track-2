@@ -180,6 +180,114 @@ def derive_context(page: Any, entry: dict[str, Any], base_context: dict[str, Any
     return context or {}
 
 
+def capture_rich_context(page: Any) -> dict[str, Any]:
+    """Capture a bounded, human-readable text transcript of the current screen.
+
+    This is what the persona "reads" in place of a screenshot: headings, the
+    visible body text, the choices it can make, tariff names/prices and whether
+    each is available online, visible prices, term tooltips, and validation
+    messages.
+    """
+    try:
+        rich = page.evaluate(
+            """
+            () => {
+              const MAX_BODY = 3500;
+              const norm = (v) => (v == null ? "" : String(v)).replace(/\\s+/g, " ").trim();
+              const visible = (el) => {
+                if (!(el instanceof Element)) return false;
+                const rects = el.getClientRects();
+                if (!rects.length && !el.offsetWidth && !el.offsetHeight) return false;
+                const style = window.getComputedStyle(el);
+                return style.visibility !== "hidden" && style.display !== "none";
+              };
+              const textOf = (el) => norm(el && (el.innerText || el.textContent));
+
+              const headings = [];
+              for (const el of Array.from(document.querySelectorAll("h1, h2, legend"))) {
+                if (visible(el)) { const t = textOf(el); if (t) headings.push(t); }
+              }
+
+              const region = document.querySelector("form")
+                || document.querySelector("main")
+                || document.querySelector("[role=main]")
+                || document.body;
+              let bodyText = norm(region && region.innerText);
+              let bodyTruncated = false;
+              if (bodyText.length > MAX_BODY) { bodyText = bodyText.slice(0, MAX_BODY); bodyTruncated = true; }
+
+              const options = [];
+              const seen = new Set();
+              const optionSelectors = "label, [role=radio], [role=checkbox], button, [data-cy='nextStepButton'], [data-cy='backButton']";
+              for (const el of Array.from(document.querySelectorAll(optionSelectors))) {
+                if (!visible(el)) continue;
+                const t = textOf(el) || norm(el.getAttribute("aria-label"));
+                if (!t || t.length > 120) continue;
+                const key = t.toLowerCase();
+                if (seen.has(key)) continue;
+                seen.add(key);
+                const input = el.querySelector ? el.querySelector("input") : null;
+                const role = el.getAttribute("role");
+                const kind = role || el.tagName.toLowerCase();
+                const checked = el.getAttribute("aria-checked") === "true" || Boolean(input && input.checked);
+                const disabled = el.hasAttribute("disabled")
+                  || el.getAttribute("aria-disabled") === "true"
+                  || Boolean(input && input.disabled);
+                options.push({ text: t, kind, checked: Boolean(checked), disabled: Boolean(disabled) });
+                if (options.length >= 40) break;
+              }
+
+              const tariffs = [];
+              for (const btn of Array.from(document.querySelectorAll("[aria-label^='Wählen ']"))) {
+                const name = norm((btn.getAttribute("aria-label") || "").replace(/^Wählen\\s+/i, ""));
+                if (!name) continue;
+                let scope = btn.closest("th, td, [role=columnheader], li, article, div");
+                let priceText = "";
+                for (let i = 0; i < 4 && scope; i++) {
+                  const m = textOf(scope).match(/(\\d{1,3}(?:\\.\\d{3})*(?:,\\d{2})?)\\s*EUR/i);
+                  if (m) { priceText = m[1]; break; }
+                  scope = scope.parentElement;
+                }
+                const onlineEligible = !/opt\\.?\\s*plus|premium/i.test(name);
+                tariffs.push({ name, monthly_price: priceText || null, online_eligible: onlineEligible });
+              }
+
+              const prices = [];
+              const bodyForPrice = textOf(region);
+              const priceRe = /([A-Za-zÄÖÜäöüß .]{0,40}?)(\\d{1,3}(?:\\.\\d{3})*(?:,\\d{2})?)\\s*EUR/g;
+              let pm; let pc = 0;
+              while ((pm = priceRe.exec(bodyForPrice)) !== null && pc < 12) {
+                prices.push({ label: norm(pm[1]), amount: pm[2] + " EUR" });
+                pc++;
+              }
+
+              const tooltips = [];
+              for (const el of Array.from(document.querySelectorAll("[role=tooltip], [data-cy*='tooltip'], [title]"))) {
+                const t = textOf(el) || norm(el.getAttribute("title"));
+                if (t && t.length <= 240 && !tooltips.includes(t)) tooltips.push(t);
+                if (tooltips.length >= 15) break;
+              }
+
+              const validationMessages = [];
+              for (const el of Array.from(document.querySelectorAll("[role=alert], [aria-invalid='true']"))) {
+                if (!visible(el)) continue;
+                const t = textOf(el) || norm(el.getAttribute("aria-label"));
+                if (t) validationMessages.push(t.slice(0, 160));
+                if (validationMessages.length >= 10) break;
+              }
+
+              const cta = document.querySelector("[data-cy='nextStepButton']");
+              const primaryCtaLabel = cta ? (textOf(cta) || norm(cta.getAttribute("aria-label"))) : null;
+
+              return { headings, bodyText, bodyTruncated, options, tariffs, prices, tooltips, validationMessages, primaryCtaLabel };
+            }
+            """
+        )
+    except Exception:
+        return {}
+    return rich or {}
+
+
 def install_runner_shim(page: Any, *, preferred_session_id: str | None = None) -> None:
     serialized_session = json.dumps(preferred_session_id)
     script = """
@@ -222,14 +330,23 @@ def read_extension_state(page: Any) -> dict[str, Any]:
         () => {
           const root = document.querySelector("#uniqa-conversion-coach-root");
           const state = window.__UNIQA_COACH_STATE__ || {};
+          const numberOrZero = (value) => {
+            const parsed = Number(value ?? 0);
+            return Number.isFinite(parsed) ? parsed : 0;
+          };
           return {
             activeActionIds: state.activeActionIds || [],
             actionable: Boolean(state.actionable),
             apiState: state.apiState || root?.dataset?.apiState || null,
             cardCount: Number(state.cardCount ?? root?.dataset?.cardCount ?? 0),
+            currentStepId: state.currentStepId || root?.dataset?.currentStepId || null,
+            decisionState: state.decisionState || root?.dataset?.decisionState || "idle",
             initialized: Boolean(state.initialized || root),
             lastActionResult: state.lastActionResult || null,
             lastRenderAt: Number(state.lastRenderAt ?? root?.dataset?.lastRenderAt ?? 0),
+            playId: state.playId || root?.dataset?.playId || null,
+            requestFinishedAt: numberOrZero(state.requestFinishedAt ?? root?.dataset?.requestFinishedAt),
+            requestStartedAt: numberOrZero(state.requestStartedAt ?? root?.dataset?.requestStartedAt),
             layoutFallback: state.layoutFallback || root?.dataset?.layoutFallback || null,
             renderState: state.renderState || root?.dataset?.renderState || null,
             rootAttached: Boolean(root?.shadowRoot),
@@ -277,6 +394,36 @@ def wait_for_coach_render(
             pass
         page.wait_for_timeout(150)
     return False
+
+
+def wait_for_coach_cycle(
+    page: Any,
+    *,
+    step_id: str,
+    entered_at: int,
+    timeout_ms: int,
+    settle_ms: int = 0,
+) -> dict[str, Any] | None:
+    if timeout_ms <= 0:
+        return None
+    started = time.time()
+    while (time.time() - started) * 1000 < timeout_ms:
+        try:
+            state = read_extension_state(page)
+            if state.get("currentStepId") != step_id:
+                page.wait_for_timeout(150)
+                continue
+            if int(state.get("requestFinishedAt", 0) or 0) < entered_at:
+                page.wait_for_timeout(150)
+                continue
+            if state.get("decisionState") in {"rendered", "empty", "error"}:
+                if settle_ms > 0:
+                    page.wait_for_timeout(settle_ms)
+                return state
+        except Exception:
+            pass
+        page.wait_for_timeout(150)
+    return None
 
 
 def dismiss_cookie_banner(page: Any) -> None:

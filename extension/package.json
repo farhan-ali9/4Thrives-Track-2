@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build",
+    "build": "npm run build:content && npm run build:background",
+    "build:content": "BUILD_TARGET=content vite build",
+    "build:background": "BUILD_TARGET=background vite build",
     "clean": "rm -rf dist coverage playwright-report test-results",
     "demo": "tsx scripts/manual-demo.ts",
     "test": "vitest run",

@@ -15,7 +15,7 @@ export class PageObserver {
   private currentContext: DerivedContext = {};
   private enteredAt: number | null = null;
   private scheduled = false;
-  private lastVisiblePrice: number | null = null;
+  private lastVisiblePriceMonthly: number | null = null;
   private cleanupHistoryHook: (() => void) | null = null;
 
   constructor(private readonly onEvent: (event: ObserverEvent) => void) {
@@ -114,7 +114,7 @@ export class PageObserver {
       this.currentStep = resolved;
       this.currentContext = nextContext;
       this.enteredAt = resolved ? Date.now() : null;
-      this.lastVisiblePrice = nextContext.visiblePrice ?? null;
+      this.lastVisiblePriceMonthly = nextContext.visiblePriceMonthly ?? null;
 
       if (resolved) {
         this.onEvent({
@@ -135,9 +135,9 @@ export class PageObserver {
 
     this.currentContext = nextContext;
     if (resolved) {
-      const nextPrice = nextContext.visiblePrice ?? null;
-      if (nextPrice !== null && this.lastVisiblePrice !== nextPrice) {
-        this.lastVisiblePrice = nextPrice;
+      const nextPrice = nextContext.visiblePriceMonthly ?? null;
+      if (nextPrice !== null && this.lastVisiblePriceMonthly !== nextPrice) {
+        this.lastVisiblePriceMonthly = nextPrice;
         this.onEvent({
           derivedContext: nextContext,
           dwellMs: null,

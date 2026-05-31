@@ -1,13 +1,13 @@
-import type { NormalizedEvent, SignalKind, StepRuntimeState } from "@/shared/contracts";
+import type { JourneySessionState, JourneySignal, NormalizedEvent } from "@/shared/contracts";
 
 const LONG_DWELL_MS = 25_000;
 
 export function deriveSignals(
   event: NormalizedEvent,
-  state: StepRuntimeState,
+  state: JourneySessionState,
   recentEvents: NormalizedEvent[],
-): SignalKind[] {
-  const signals = new Set<SignalKind>();
+): JourneySignal[] {
+  const signals = new Set<JourneySignal>();
 
   if (event.type === "step_leave" && (event.dwellMs ?? 0) >= LONG_DWELL_MS) {
     signals.add("dwell");
@@ -61,7 +61,7 @@ function isBackInteraction(event: NormalizedEvent): boolean {
   return key.includes("back") || key.includes("zuruck") || key.includes("abbrechen");
 }
 
-function isRepeatedChange(event: NormalizedEvent, state: StepRuntimeState): boolean {
+function isRepeatedChange(event: NormalizedEvent, state: JourneySessionState): boolean {
   if (!event.elementKey) {
     return false;
   }

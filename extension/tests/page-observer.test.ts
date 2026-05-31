@@ -60,7 +60,7 @@ describe("PageObserver", () => {
 
     const priceChanged = events.find((event) => event.type === "price_changed");
     expect(priceChanged?.step?.pageStepId).toBe("s4_initial_price");
-    expect(priceChanged?.derivedContext.visiblePrice).toBe(45);
+    expect(priceChanged?.derivedContext.visiblePriceMonthly).toBe(45);
 
     observer.stop();
   });
