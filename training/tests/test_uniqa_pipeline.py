@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import contextlib
 import importlib.util
+<<<<<<< HEAD
 import os
+=======
+import io
+>>>>>>> a7912106c94e20e2bb4e70342644ca467f9be4e9
 import sys
 import tempfile
 import unittest
@@ -34,22 +39,19 @@ class UniqaPipelineParserTests(unittest.TestCase):
         args = parser.parse_args(["local-full-loop"])
         self.assertEqual(args.validate_sessions, 12)
         self.assertEqual(args.bulk_sessions, 300)
-        self.assertEqual(args.evaluation_runner_mode, "validation")
+        self.assertEqual(args.experiment_prefix, "local-full-loop")
 
-    def test_leonardo_submit_print_only(self):
+    def test_run_live_defaults_to_coach_mode(self):
         parser = module.build_parser()
-        args = parser.parse_args(["leonardo-submit", "--job", "validate", "--print-only"])
-        result = args.func(args)
-        self.assertFalse(result["submitted"])
-        self.assertIn("sbatch", result["command"][0])
+        args = parser.parse_args(["run-live"])
+        self.assertEqual(args.execution_mode, "coach")
+        self.assertEqual(args.sessions, 300)
 
-    def test_leonardo_submit_supports_full_loop_jobs(self):
+    def test_removed_training_commands_are_not_exposed(self):
         parser = module.build_parser()
-        for job_name in ("validate-vllm", "bulk-vllm", "build-datasets", "evaluate"):
-            args = parser.parse_args(["leonardo-submit", "--job", job_name, "--print-only"])
-            result = args.func(args)
-            self.assertFalse(result["submitted"])
-            self.assertTrue(result["command"][1].endswith(".sh"))
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit):
+                parser.parse_args(["train-coach-ranker"])
 
     def test_local_full_parser_defaults_to_small_validation_run(self):
         with patch.dict(os.environ, {}, clear=True):

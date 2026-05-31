@@ -5,6 +5,7 @@ from statistics import mean
 from typing import Any
 
 ONLINE_CONVERSION = "converted_online"
+ADVISOR_LEAD = "submitted_advisor_lead"
 ADVISOR_HANDOFF = "advisor_handoff"
 ABANDONED = "abandoned"
 DROP_STEPS = ["s4_initial_price", "s5_add_ons", "s7_final_price"]
@@ -14,7 +15,10 @@ EXPECTED_STEPS_PER_SESSION = 8
 
 
 def _outcome(trace: dict[str, Any]) -> str:
-    return trace.get("terminal_outcome") or trace.get("outcome") or "abandoned"
+    outcome = trace.get("terminal_outcome") or trace.get("outcome") or "abandoned"
+    if outcome == ADVISOR_HANDOFF:
+        return ADVISOR_LEAD
+    return outcome
 
 
 def _metadata(trace: dict[str, Any], event: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -57,9 +61,15 @@ def compute_metrics(traces: list[dict[str, Any]]) -> dict[str, Any]:
     selector_failures = 0
     backend_timeouts = 0
     latencies = []
+    popup_steps = 0
+    popup_rendered = 0
+    popup_timeouts = 0
+    popup_cta = 0
+    popup_dismiss = 0
 
     for trace in traces:
         events = trace.get("events", [])
+        coach_render_log = trace.get("coach_render_log", [])
         metadata = _metadata(trace, events[0] if events else None)
         persona = metadata.get("persona_id", "unknown")
         intention = metadata.get("intention", "unknown")
@@ -77,7 +87,7 @@ def compute_metrics(traces: list[dict[str, Any]]) -> dict[str, Any]:
         out_of_scope_seen = any(_is_out_of_scope_event(event) for event in events)
         if out_of_scope_seen:
             advisor_required += 1
-            if outcome == ADVISOR_HANDOFF:
+            if outcome == ADVISOR_LEAD:
                 advisor_correct += 1
 
         if outcome == ABANDONED:
@@ -93,6 +103,10 @@ def compute_metrics(traces: list[dict[str, Any]]) -> dict[str, Any]:
                 selector_failures += 1
             if event_type in {"backend_timeout", "inference_timeout"}:
                 backend_timeouts += 1
+            if event_type == "coach_cta":
+                popup_cta += 1
+            if event_type == "coach_dismiss":
+                popup_dismiss += 1
             latency = event.get("derived_context", {}).get("inference_latency_ms")
             if isinstance(latency, (int, float)):
                 latencies.append(float(latency))
@@ -112,11 +126,20 @@ def compute_metrics(traces: list[dict[str, Any]]) -> dict[str, Any]:
             if event.get("derived_context", {}).get("eligible_for_intervention") or kind:
                 eligible_decisions += 1
 
+        for row in coach_render_log:
+            popup_steps += 1
+            if row.get("rendered"):
+                popup_rendered += 1
+            if row.get("decision_state") == "timeout":
+                popup_timeouts += 1
+
     rate = lambda count: (count / total) if total else 0.0
     return {
         "sessions": total,
         "online_conversion_rate": rate(outcomes[ONLINE_CONVERSION]),
-        "advisor_handoff_count": outcomes[ADVISOR_HANDOFF],
+        "advisor_lead_submission_rate": rate(outcomes[ADVISOR_LEAD]),
+        "advisor_lead_count": outcomes[ADVISOR_LEAD] + outcomes[ADVISOR_HANDOFF],
+        "advisor_handoff_count": outcomes[ADVISOR_LEAD] + outcomes[ADVISOR_HANDOFF],
         "abandonment_rate": rate(outcomes[ABANDONED]),
         "s4_initial_price_dropoff": dropoffs["s4_initial_price"],
         "s5_addon_dropoff": dropoffs["s5_add_ons"],
@@ -139,6 +162,12 @@ def compute_metrics(traces: list[dict[str, Any]]) -> dict[str, Any]:
         "backend_timeout_rate": backend_timeouts / total if total else 0.0,
         "inference_latency_ms_avg": mean(latencies) if latencies else 0.0,
         "trace_completeness_rate": complete_traces / total if total else 0.0,
+        "popup_render_rate": popup_rendered / popup_steps if popup_steps else 0.0,
+        "popup_rendered_steps": popup_rendered,
+        "popup_steps": popup_steps,
+        "popup_timeout_count": popup_timeouts,
+        "popup_cta_count": popup_cta,
+        "popup_dismiss_count": popup_dismiss,
     }
 
 

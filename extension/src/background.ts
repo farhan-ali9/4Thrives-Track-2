@@ -1,4 +1,5 @@
 import type {
+  JourneyOutcome,
   NormalizedEvent,
   RuntimeChatRequest,
   RuntimeEventResponse,
@@ -8,15 +9,23 @@ import { CoachClient } from "@/background/coach-client";
 import { FeatherlessChatClient } from "@/background/featherless-chat-client";
 import { UniqaEventOrchestrator } from "@/background/orchestrator";
 import { ChromeStorageAdapter, UniqaStorage } from "@/background/storage";
+import { createLogger } from "@/shared/logger";
+
+const log = createLogger("background");
 
 type RuntimeMessage =
   | {
       type: "uniqa:event";
       event: NormalizedEvent;
+      url: string;
     }
   | {
       type: "uniqa:chat";
       request: RuntimeChatRequest;
+    }
+  | {
+      type: "uniqa:outcome";
+      outcome: JourneyOutcome;
     }
   | {
       type: "uniqa:init";
@@ -40,21 +49,41 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
   }
 
   if (message.type === "uniqa:event") {
-    void orchestrator.handleEvent(message.event)
+    void orchestrator.handleEvent(message.event, message.url)
       .then(sendResponse)
       .catch((error) => {
-        console.error("[UNIQA Coach] Event handling failed.", error);
+        log.error("Event handling failed", {
+          error: error instanceof Error ? error.message : String(error),
+          type: message.event?.type,
+        });
         sendResponse({
-          actions: [],
           apiStatus: {
             endpoint: "chrome.runtime",
             lastUpdatedAt: Date.now(),
             message: error instanceof Error ? error.message : "Unknown extension runtime error",
-            policyVersion: null,
             state: "error",
           },
+          decision: null,
+          snapshot: null,
           signals: [],
         } satisfies RuntimeEventResponse);
+      });
+    return true;
+  }
+
+  if (message.type === "uniqa:outcome") {
+    void orchestrator.finalizeOutcome(message.outcome)
+      .then(sendResponse)
+      .catch((error) => {
+        log.error("Outcome handling failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        sendResponse({
+          endpoint: "chrome.runtime",
+          lastUpdatedAt: Date.now(),
+          message: error instanceof Error ? error.message : "Unknown extension runtime error",
+          state: "error",
+        });
       });
     return true;
   }
@@ -63,7 +92,9 @@ chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendRespo
     void chatClient.chat(message.request)
       .then(sendResponse)
       .catch((error) => {
-        console.error("[UNIQA Coach] Chat failed.", error);
+        log.error("Chat failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
         sendResponse({
           error: "chat_failed",
           message: {
@@ -83,6 +114,11 @@ async function handleInit(
   tabId: number,
 ): Promise<RuntimeInitResponse> {
   const session = await storage.ensureSession(tabId, message.url, message.preferredSessionId);
+  log.info("Session initialized", {
+    sessionId: session.sessionId,
+    tabId,
+    url: message.url,
+  });
   return {
     chatModel: chatClient.getModelName(),
     chatModelOptions: chatClient.getModelOptions(),

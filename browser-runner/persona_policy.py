@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 VALID_INTENTIONS = {"purchase", "orientation", "comparison", "price_check"}
-TERMINAL_OUTCOMES = {"converted_online", "abandoned", "advisor_handoff"}
+TERMINAL_OUTCOMES = {"converted_online", "abandoned", "submitted_advisor_lead", "advisor_handoff"}
 LIVE_UNIQA_STEPS = [
     "s1_coverage_scope",
     "s2_for_whom",
@@ -148,16 +148,16 @@ def classify_outcome(events: list[dict[str, Any]]) -> str:
         element_key = event.get("element_key")
         derived_context = event.get("derived_context", {}) if isinstance(event.get("derived_context", {}), dict) else {}
         if element_key in OUT_OF_SCOPE_ELEMENTS or event.get("action") == "request_advisor":
-            return "advisor_handoff"
+            return "submitted_advisor_lead"
         if canonicalize_step_id(event.get("step_id")) == "s8_confirm" and (
             element_key in ADVISOR_TERMINAL_ELEMENTS
             or derived_context.get("terminalScreen") == "advisor_handoff"
             or derived_context.get("screenTitle") == "Berateranfrage"
         ):
-            return "advisor_handoff"
+            return "submitted_advisor_lead"
         if event.get("event_type") == "purchase_submitted":
             return "converted_online"
         if event.get("action") == "abandon" or event.get("event_type") in {"abandon", "page_close"}:
             return "abandoned"
     last_step = events[-1].get("step_id") if events else None
-    return "converted_online" if last_step == "s8_confirm" else "abandoned"
+    return "submitted_advisor_lead" if last_step == "s8_confirm" else "abandoned"

@@ -13,6 +13,11 @@ const SOCIAL_PROVIDER_CODES: Record<string, string> = {
   "SVS Landwirtschaft": "svs_landwirtschaft",
 };
 
+const COVERAGE_LABELS = {
+  doctor: "doctor_visits",
+  hospital: "hospital",
+} as const;
+
 function queryAll(doc: Document, selectors: string[]): Element[] {
   const seen = new Set<Element>();
   const elements: Element[] = [];
@@ -67,6 +72,56 @@ function extractSelectedAddOns(doc: Document, selectors: string[]): string[] {
   }
 
   return values;
+}
+
+function extractSelectedCoverage(doc: Document, selectors: string[]): string[] {
+  const values: string[] = [];
+
+  for (const element of queryAll(doc, selectors)) {
+    if (!isInputElement(element) || element.type !== "checkbox" || !element.checked) {
+      continue;
+    }
+
+    const text = (
+      readText(element.closest("label")) ||
+      readText(element.parentElement) ||
+      element.getAttribute("aria-label") ||
+      ""
+    ).toLowerCase();
+
+    if (text.includes("arzt")) {
+      values.push(COVERAGE_LABELS.doctor);
+    }
+    if (text.includes("krankenhaus")) {
+      values.push(COVERAGE_LABELS.hospital);
+    }
+  }
+
+  return [...new Set(values)];
+}
+
+function extractInsuredPerson(doc: Document, selectors: string[]): string | null {
+  for (const element of queryAll(doc, selectors)) {
+    if (!isInputElement(element) || element.type !== "radio" || !element.checked) {
+      continue;
+    }
+
+    const text = (
+      readText(element.closest("label")) ||
+      readText(element.parentElement) ||
+      element.getAttribute("aria-label") ||
+      ""
+    ).toLowerCase();
+
+    if (text.includes("ich selbst")) {
+      return "myself";
+    }
+    if (text.includes("andere")) {
+      return "other_persons";
+    }
+  }
+
+  return null;
 }
 
 function extractFieldCompletion(doc: Document, selectors: string[]): number | null {
@@ -184,6 +239,14 @@ function applyExtractor(
       result.socialInsuranceProviderCode = extractSocialInsuranceProvider(doc, selectors);
       return;
     }
+    case "selectedCoverage": {
+      result.selectedCoverage = extractSelectedCoverage(doc, selectors);
+      return;
+    }
+    case "insuredPerson": {
+      result.insuredPerson = extractInsuredPerson(doc, selectors);
+      return;
+    }
     case "selectedTariff": {
       result.selectedTariff = extractSelectedTariffFromDom(doc);
       return;
@@ -200,18 +263,22 @@ function applyExtractor(
       result.validationErrorCount = extractValidationErrorCount(doc);
       return;
     }
-    case "visiblePrice": {
-      result.visiblePrice = extractVisiblePrice(doc, selectors);
+    case "visiblePriceMonthly": {
+      result.visiblePriceMonthly = extractVisiblePrice(doc, selectors);
+      result.visiblePriceDaily =
+        result.visiblePriceMonthly !== null && result.visiblePriceMonthly !== undefined
+          ? Number((result.visiblePriceMonthly / 30).toFixed(2))
+          : null;
       return;
     }
-    case "priceDelta": {
+    case "priceDeltaMonthly": {
       const current = extractVisiblePrice(doc, selectors);
       if (current !== null) {
-        const previousVisiblePrice = baseContext.visiblePrice ?? null;
-        result.priceDelta =
+        const previousVisiblePrice = baseContext.visiblePriceMonthly ?? null;
+        result.priceDeltaMonthly =
           previousVisiblePrice !== null
             ? Number((current - previousVisiblePrice).toFixed(2))
-            : result.priceDelta ?? null;
+            : result.priceDeltaMonthly ?? 0;
       }
       return;
     }

@@ -24,13 +24,15 @@ class MockRunnerTests(unittest.TestCase):
             trace = module.run_mock_session(persona_id="franz", intention="purchase", experiment_id="test", seed=1, config=config)
             self.assertTrue(trace["session_id"].startswith("sess_"))
             self.assertTrue(trace["events"])
-            self.assertIn(trace["terminal_outcome"], {"converted_online", "abandoned", "advisor_handoff"})
+            self.assertIn(trace["terminal_outcome"], {"converted_online", "abandoned", "submitted_advisor_lead"})
+            self.assertIn("runtime_trace", trace)
+            self.assertIn("coach_render_log", trace)
             path = module.write_trace(trace, tmp_path)
             self.assertTrue(path.exists())
 
     def test_out_of_scope_live_elements_end_as_advisor_handoff(self):
         for element_key in ("hospital", "both", "other_persons"):
-            self.assertEqual(module._terminal_outcome_for_element(element_key), "advisor_handoff")
+            self.assertEqual(module._terminal_outcome_for_element(element_key), "submitted_advisor_lead")
         self.assertIsNone(module._terminal_outcome_for_element("at_doctor"))
         self.assertIsNone(module._terminal_outcome_for_element("opt_plus"))
         self.assertIsNone(module._terminal_outcome_for_element("premium"))

@@ -67,7 +67,10 @@ def run_batch(
     config = BrowserRunConfig.from_env()
     if output_dir:
         config = BrowserRunConfig(**{**config.__dict__, "output_dir": output_dir})
-    safety = _safety_from_env(RunnerSafetyConfig.for_mode(mode))
+    batch_output_dir = config.output_dir / experiment_id
+    batch_output_dir.mkdir(parents=True, exist_ok=True)
+    config = BrowserRunConfig(**{**config.__dict__, "output_dir": batch_output_dir})
+    safety = RunnerSafetyConfig.for_mode(mode)
     failures: FailureCounts = {"selector": 0, "backend": 0, "page": 0}
     traces = []
     failure_log = []
@@ -78,16 +81,36 @@ def run_batch(
         seed = index // len(PERSONA_MATRIX) + 1
         try:
             trace = selected_runner(persona_id, intention, experiment_id, seed, config, safety)
-            traces.append(str(write_trace(trace, config.output_dir)))
+            traces.append(str(write_trace(trace, batch_output_dir)))
         except Exception as exc:  # classified below and summarized for evaluation hygiene
             bucket = _classify_failure(exc)
             failures[bucket] += 1
             failure_log.append({"session_index": index, "persona_id": persona_id, "intention": intention, "seed": seed, "failure_type": bucket, "message": str(exc)})
         breaker = _circuit_breaker_reason(failures, safety)
         if breaker:
-            return {"experiment_id": experiment_id, "mode": mode, "traces": traces, "failures": failures, "failure_log": failure_log, "circuit_breaker": breaker}
+            summary = {
+                "experiment_id": experiment_id,
+                "mode": mode,
+                "trace_dir": str(batch_output_dir),
+                "traces": traces,
+                "failures": failures,
+                "failure_log": failure_log,
+                "circuit_breaker": breaker,
+            }
+            (batch_output_dir / "batch-summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True))
+            return summary
         time.sleep(0.05 if mode == "mock" else safety.min_think_ms / 1000)
-    return {"experiment_id": experiment_id, "mode": mode, "traces": traces, "failures": failures, "failure_log": failure_log, "circuit_breaker": None}
+    summary = {
+        "experiment_id": experiment_id,
+        "mode": mode,
+        "trace_dir": str(batch_output_dir),
+        "traces": traces,
+        "failures": failures,
+        "failure_log": failure_log,
+        "circuit_breaker": None,
+    }
+    (batch_output_dir / "batch-summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True))
+    return summary
 
 
 def _env_int(name: str, default: int) -> int:

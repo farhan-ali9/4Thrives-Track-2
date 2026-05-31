@@ -3,6 +3,79 @@ export type CoachPlacement =
   | "near-primary-cta"
   | "bottom-toast";
 
+export type CoachCtaType =
+  | "select_tariff"
+  | "continue"
+  | "focus_field"
+  | "open_chat"
+  | "advisor_handoff"
+  | "save_progress";
+
+export interface CoachCta {
+  label: string;
+  type: CoachCtaType;
+  target: string | null;
+  prompt: string | null;
+  telemetryKey: string | null;
+}
+
+export type JourneyRouteFamily =
+  | "online_doctor"
+  | "advisor_coverage"
+  | "advisor_other_persons"
+  | "advisor_tariff";
+
+export type JourneyStage =
+  | "coverage_choice"
+  | "insured_person"
+  | "quote_basics"
+  | "tariff_choice"
+  | "options"
+  | "health_data"
+  | "price_review"
+  | "advisor_contact"
+  | "checkout"
+  | "done";
+
+export type JourneyGoal = "converted_online" | "submitted_advisor_lead";
+
+export type PlayId =
+  | "scope_clarifier"
+  | "trust_builder"
+  | "price_reframe"
+  | "online_tariff_recovery"
+  | "price_change_explainer"
+  | "advisor_lead_push"
+  | "checkout_reassurance"
+  | "chat_handoff";
+
+export type JourneySignal =
+  | "dwell"
+  | "scroll_back"
+  | "back_nav"
+  | "repeated_change"
+  | "price_hover"
+  | "cancel_hover"
+  | "tariff_click_oos"
+  | "path_oos"
+  | "inactivity";
+
+export interface DerivedContext {
+  ageBand?: string | null;
+  socialInsuranceProviderCode?: string | null;
+  selectedCoverage?: string[] | null;
+  insuredPerson?: string | null;
+  selectedTariff?: string | null;
+  selectedAddOns?: string[];
+  fieldCompletion?: number | null;
+  validationErrorCount?: number;
+  visiblePriceMonthly?: number | null;
+  visiblePriceDaily?: number | null;
+  priceDeltaMonthly?: number | null;
+  sessionDurationMs?: number;
+  lastInteractionMs?: number;
+}
+
 export type NormalizedEventType =
   | "step_enter"
   | "step_leave"
@@ -21,36 +94,12 @@ export type NormalizedEventType =
   | "coach_dismiss"
   | "coach_cta";
 
-export type SignalKind =
-  | "dwell"
-  | "scroll_back"
-  | "back_nav"
-  | "repeated_change"
-  | "price_hover"
-  | "cancel_hover"
-  | "tariff_click_oos"
-  | "path_oos"
-  | "inactivity";
-
-export interface DerivedContext {
-  ageBand?: string | null;
-  socialInsuranceProviderCode?: string | null;
-  selectedTariff?: string | null;
-  selectedAddOns?: string[];
-  fieldCompletion?: number | null;
-  validationErrorCount?: number;
-  visiblePrice?: number | null;
-  priceDelta?: number | null;
-  sessionDurationMs?: number;
-  lastInteractionMs?: number;
-}
-
 export interface NormalizedEvent {
   id: string;
   sessionId: string;
   ts: number;
   pageStepId: string | null;
-  coachStepId: string | null;
+  journeyStage: JourneyStage | null;
   type: NormalizedEventType;
   elementKey: string | null;
   value: Record<string, unknown> | string | number | boolean | null;
@@ -58,44 +107,85 @@ export interface NormalizedEvent {
   dwellMs: number | null;
 }
 
-export interface CurrentOffer {
-  visiblePrice: number | null;
-  priceDelta: number | null;
-  selectedTariff: string | null;
-}
-
-export interface CoachRequest {
+export interface JourneySnapshot {
   sessionId: string;
-  pageStepId: string | null;
-  coachStepId: string | null;
-  recentEvents: NormalizedEvent[];
-  detectedSignals: SignalKind[];
-  derivedContext: DerivedContext;
-  currentOffer: CurrentOffer;
+  url: string;
+  routeFamily: JourneyRouteFamily;
+  stage: JourneyStage;
+  selectedCoverage: string[];
+  insuredPerson: string | null;
+  selectedTariff: string | null;
+  selectedAddOns: string[];
+  visiblePriceMonthly: number | null;
+  visiblePriceDaily: number | null;
+  priceDeltaMonthly: number | null;
+  fieldCompletion: number | null;
+  validationErrorCount: number;
+  signals: JourneySignal[];
+  lastAction: {
+    elementKey: string | null;
+    type: NormalizedEventType;
+    value: Record<string, unknown> | string | number | boolean | null;
+  } | null;
+  eligibleGoals: JourneyGoal[];
 }
 
-export interface CoachAction {
+export type JourneyCardTone = "info" | "value" | "warning" | "success";
+
+export interface JourneyCard {
   id: string;
-  kind: string;
   placement: CoachPlacement;
+  tone: JourneyCardTone;
   title: string;
   body: string;
-  ctaLabel: string | null;
+  cta: CoachCta | null;
   dismissible: boolean;
-  cooldownMs: number;
 }
 
-export interface CoachResponse {
-  actions: CoachAction[];
-  source: "remote" | "remote_error";
-  policyVersion: number | null;
+export type JourneyDomMutationKind =
+  | "price_reframe"
+  | "tariff_badges"
+  | "inline_note"
+  | "advisor_progress"
+  | "chat_link";
+
+export interface JourneyDomMutation {
+  id: string;
+  kind: JourneyDomMutationKind;
+  placement: CoachPlacement;
+  title: string | null;
+  body: string | null;
+  selector: string | null;
+  label: string | null;
+  prompt: string | null;
+  target: string | null;
+}
+
+export interface JourneyDecision {
+  decisionId: string;
+  goal: JourneyGoal;
+  playId: PlayId;
+  priority: number;
+  cooldownMs: number;
+  cards: JourneyCard[];
+  domMutations: JourneyDomMutation[];
+  chatPrompt: string | null;
+}
+
+export interface JourneyOutcome {
+  sessionId: string;
+  routeFamily: JourneyRouteFamily;
+  terminalStage: JourneyStage;
+  outcome: "converted_online" | "submitted_advisor_lead" | "abandoned";
+  finalTariff: string | null;
+  finalPriceMonthly: number | null;
+  decidedAt: number;
 }
 
 export interface CoachApiStatus {
   endpoint: string;
   lastUpdatedAt: number;
   message: string;
-  policyVersion: number | null;
   state: "starting" | "connected" | "error";
 }
 
@@ -122,12 +212,14 @@ export interface ExtractorConfig {
   kind:
     | "ageBandFromDate"
     | "socialInsuranceProvider"
+    | "selectedCoverage"
+    | "insuredPerson"
     | "selectedTariff"
     | "selectedAddOns"
     | "fieldCompletion"
     | "validationErrorCount"
-    | "visiblePrice"
-    | "priceDelta"
+    | "visiblePriceMonthly"
+    | "priceDeltaMonthly"
     | "sessionTiming";
   selectors?: string[];
   scopeSelector?: string;
@@ -135,7 +227,7 @@ export interface ExtractorConfig {
 
 export interface UniqaPageMapEntry {
   pageStepId: string;
-  coachStepId: string;
+  journeyStage: JourneyStage;
   verified: boolean;
   enabled: boolean;
   match: StepMatchConfig;
@@ -146,7 +238,7 @@ export interface UniqaPageMapEntry {
 
 export interface ResolvedStep {
   pageStepId: string;
-  coachStepId: string;
+  journeyStage: JourneyStage;
   injectionAnchor: CoachPlacement;
   config: UniqaPageMapEntry;
 }
@@ -159,21 +251,20 @@ export interface SessionRecord {
   lastSeenAt: number;
 }
 
-export interface StepRuntimeState {
-  currentStepId: string | null;
-  currentCoachStepId: string | null;
-  stepEnteredAt: number | null;
-  lastActivityAt: number | null;
-  lastVisiblePrice: number | null;
-  initialVisiblePrice: number | null;
+export interface JourneySessionState {
+  routeFamily: JourneyRouteFamily;
+  stage: JourneyStage | null;
+  baselinePriceMonthly: number | null;
+  latestPriceMonthly: number | null;
+  selectedCoverage: string[];
+  insuredPerson: string | null;
   selectedTariff: string | null;
   selectedAddOns: string[];
   fieldChangeCounts: Record<string, number>;
   lastDerivedContext: DerivedContext;
-}
-
-export interface CoachRuntimeState {
-  shownActionTimestamps: Record<string, number>;
+  lastInteractionAt: number | null;
+  lastAction: JourneySnapshot["lastAction"];
+  lastShownPlayByStage: Partial<Record<JourneyStage, { playId: PlayId; shownAt: number }>>;
 }
 
 export interface RuntimeInitResponse {
@@ -184,9 +275,10 @@ export interface RuntimeInitResponse {
 }
 
 export interface RuntimeEventResponse {
-  actions: CoachAction[];
+  decision: JourneyDecision | null;
   apiStatus: CoachApiStatus;
-  signals: SignalKind[];
+  snapshot: JourneySnapshot | null;
+  signals: JourneySignal[];
 }
 
 export type ChatRole = "user" | "assistant";
@@ -201,7 +293,8 @@ export interface RuntimeChatRequest {
   context: DerivedContext;
   messages: ChatMessage[];
   model?: string;
-  pageStepId: string | null;
+  routeFamily: JourneyRouteFamily | null;
+  stage: JourneyStage | null;
   sessionId: string;
 }
 

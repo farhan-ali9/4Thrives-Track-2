@@ -71,49 +71,64 @@ test("loads the built extension on the live calculator and stores coach interact
   const extensionPath = buildExtension(apiOrigin);
   const userDataDir = mkdtempSync(join(tmpdir(), "uniqa-extension-"));
   const requests: Array<{
-    derived_signals?: Record<string, boolean>;
-    event_id?: string;
-    event_type?: string;
+    routeFamily?: string;
+    selectedTariff?: string | null;
     session_id?: string;
-    step_id?: string | null;
+    stage?: string | null;
   }> = [];
 
   const server = createServer(async (request, response) => {
-    if (request.method !== "POST" || request.url !== "/api/v2/events") {
+    if (request.method !== "POST" || request.url !== "/api/runtime/decide") {
       response.writeHead(404).end();
       return;
     }
 
     const body = await readRequestBody(request);
     const payload = JSON.parse(body) as {
-      derived_signals?: Record<string, boolean>;
-      event_id?: string;
-      event_type?: string;
-      session_id?: string;
-      step_id?: string | null;
+      routeFamily?: string;
+      selectedTariff?: string | null;
+      sessionId?: string;
+      stage?: string | null;
     };
     const shouldRenderCoach = requests.length === 0;
-    requests.push(payload);
+    requests.push({
+      routeFamily: payload.routeFamily,
+      selectedTariff: payload.selectedTariff,
+      session_id: payload.sessionId,
+      stage: payload.stage,
+    });
 
     response.writeHead(200, { "Content-Type": "application/json" });
     response.end(
       JSON.stringify({
-        actions: shouldRenderCoach
-          ? [
-              {
-                body: "This is a mocked coach action from the live smoke test.",
-                cooldownMs: 30_000,
-                ctaLabel: "Continue",
-                dismissible: true,
-                id: "live_smoke_action",
-                kind: "smoke_test",
-                placement: "bottom-toast",
-                title: "Live smoke coach action",
-              },
-            ]
-          : [],
-        policyVersion: 1,
-        source: "remote",
+        decision: shouldRenderCoach
+          ? {
+              decisionId: "dec_live_smoke",
+              goal: "converted_online",
+              playId: "price_reframe",
+              priority: 80,
+              cooldownMs: 30_000,
+              chatPrompt: "Help me continue the current calculator step.",
+              cards: [
+                {
+                  id: "live_smoke_card",
+                  placement: "bottom-toast",
+                  tone: "value",
+                  title: "Live smoke runtime decision",
+                  body: "This is a mocked runtime decision from the live smoke test.",
+                  cta: {
+                    label: "Continue",
+                    prompt: "Help me continue the current calculator step.",
+                    target: "chat",
+                    telemetryKey: "live_smoke_continue",
+                    type: "open_chat",
+                  },
+                  dismissible: true,
+                },
+              ],
+              domMutations: [],
+            }
+          : null,
       }),
     );
   });
@@ -155,14 +170,14 @@ test("loads the built extension on the live calculator and stores coach interact
             document.querySelector("#uniqa-conversion-coach-root")?.shadowRoot?.textContent ?? "",
         ),
       )
-      .toContain("Live smoke coach action");
+      .toContain("Live smoke runtime decision");
 
     await page.evaluate(() => {
       const shadow = document.querySelector("#uniqa-conversion-coach-root")?.shadowRoot;
-      const cta = shadow?.querySelector(".cta");
-      const dismiss = shadow?.querySelector(".dismiss");
+      const cta = shadow?.querySelector(".card-cta");
+      const dismiss = shadow?.querySelector(".card-dismiss");
       if (!(cta instanceof HTMLButtonElement) || !(dismiss instanceof HTMLButtonElement)) {
-        throw new Error("Coach action buttons were not rendered");
+        throw new Error("Runtime decision buttons were not rendered");
       }
 
       cta.click();
@@ -189,8 +204,8 @@ test("loads the built extension on the live calculator and stores coach interact
     expect(flattenedEvents).toContain("coach_cta");
     expect(flattenedEvents).toContain("coach_dismiss");
     expect(storedEvents.some((event) => event.pageStepId === "s1_coverage_scope")).toBe(true);
-    expect(requests.some((request) => request.step_id === "s1_coverage_scope")).toBe(true);
-    expect(requests.every((request) => typeof request.event_id === "string")).toBe(true);
+    expect(requests.some((request) => request.stage === "coverage_choice")).toBe(true);
+    expect(requests.every((request) => typeof request.session_id === "string")).toBe(true);
   } finally {
     await context?.close();
     await new Promise<void>((resolveServer, rejectServer) => {

@@ -32,6 +32,8 @@ def check_dataset(rows: list[dict[str, Any]]) -> dict[str, Any]:
     errors = []
     phases = Counter()
     outcomes = Counter()
+    if not rows:
+        errors.append("dataset is empty")
     for index, row in enumerate(rows):
         missing = sorted(REQUIRED_DATASET_FIELDS - set(row))
         if missing:

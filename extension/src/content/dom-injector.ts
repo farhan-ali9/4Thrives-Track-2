@@ -1,11 +1,9 @@
 import type {
   ChatMessage,
-  CoachAction,
   CoachApiStatus,
-  CoachPlacement,
+  JourneyDecision,
   ResolvedStep,
 } from "@/shared/contracts";
-import { queryFirst } from "@/shared/page-map";
 
 const ROOT_ID = "uniqa-conversion-coach-root";
 
@@ -15,818 +13,651 @@ const STYLES = `
   }
 
   .layer {
-    font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     position: fixed;
     inset: 0;
     pointer-events: none;
     z-index: 2147483646;
+    font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
 
-  .status-wrap {
-    bottom: 24px;
-    display: grid;
-    gap: 10px;
-    left: 24px;
-    max-width: 360px;
-    pointer-events: auto;
+  .status {
     position: fixed;
-  }
-
-  .status-pill {
-    align-items: center;
-    appearance: none;
-    backdrop-filter: blur(14px);
-    background: rgba(7, 22, 58, 0.92);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 999px;
-    box-shadow: 0 12px 32px rgba(7, 22, 58, 0.2);
-    color: #ffffff;
-    cursor: pointer;
-    display: inline-flex;
-    gap: 10px;
-    justify-self: start;
-    padding: 10px 14px;
-  }
-
-  .status-pill[data-state="connected"] {
-    background: rgba(19, 91, 58, 0.94);
-  }
-
-  .status-pill[data-state="error"] {
-    background: rgba(134, 28, 45, 0.95);
-  }
-
-  .status-dot {
-    border-radius: 999px;
-    display: inline-block;
-    flex: 0 0 auto;
-    height: 9px;
-    width: 9px;
-  }
-
-  .status-pill[data-state="starting"] .status-dot {
-    background: #ffd24c;
-  }
-
-  .status-pill[data-state="connected"] .status-dot {
-    background: #91f2bd;
-  }
-
-  .status-pill[data-state="error"] .status-dot {
-    background: #ff9aad;
-  }
-
-  .status-pill-text {
+    left: 14px;
+    bottom: 14px;
     display: grid;
-    gap: 2px;
-    text-align: left;
+    gap: 8px;
+    pointer-events: auto;
   }
 
-  .status-pill-title {
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 0.02em;
+  .pill {
+    border: 0;
+    border-radius: 999px;
+    background: rgba(6, 23, 56, 0.94);
+    color: #fff;
+    padding: 8px 12px;
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    cursor: pointer;
+    box-shadow: 0 12px 28px rgba(6, 23, 56, 0.24);
   }
 
-  .status-pill-message {
-    color: rgba(255, 255, 255, 0.82);
-    font-size: 11px;
-    line-height: 1.25;
+  .pill[data-state="connected"] {
+    background: rgba(27, 102, 59, 0.96);
   }
 
-  .status-panel {
-    backdrop-filter: blur(16px);
-    background: rgba(7, 22, 58, 0.94);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 18px;
-    box-shadow: 0 18px 50px rgba(7, 22, 58, 0.24);
-    color: #ffffff;
-    padding: 14px;
+  .pill[data-state="error"] {
+    background: rgba(150, 36, 48, 0.96);
   }
 
-  .status-panel[hidden] {
+  .panel {
     display: none;
+    max-width: 320px;
+    background: rgba(6, 23, 56, 0.96);
+    color: #fff;
+    border-radius: 16px;
+    padding: 14px;
+    box-shadow: 0 18px 42px rgba(6, 23, 56, 0.28);
   }
 
-  .status-panel-title {
+  .panel[data-open="true"] {
     display: block;
+  }
+
+  .panel-title {
     font-size: 13px;
     font-weight: 700;
     margin-bottom: 8px;
   }
 
-  .status-meta,
-  .status-log {
-    color: rgba(255, 255, 255, 0.84);
-    display: grid;
+  .panel-copy, .log-entry {
     font-size: 12px;
-    gap: 6px;
-    line-height: 1.35;
+    line-height: 1.4;
+    color: rgba(255, 255, 255, 0.84);
   }
 
-  .status-section-label {
-    color: rgba(255, 255, 255, 0.64);
-    display: block;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    margin-bottom: 5px;
-    margin-top: 12px;
-    text-transform: uppercase;
+  .log-entry + .log-entry {
+    margin-top: 6px;
   }
 
-  .status-log-entry {
-    align-items: start;
-    display: grid;
-    gap: 2px;
-    grid-template-columns: 56px 1fr;
-  }
-
-  .status-log-time {
-    color: rgba(255, 255, 255, 0.54);
-    font-variant-numeric: tabular-nums;
+  .card-wrap {
+    position: fixed;
+    right: 16px;
+    bottom: 86px;
+    max-width: 340px;
+    pointer-events: auto;
   }
 
   .card {
-    background: linear-gradient(135deg, #07163a 0%, #0f6bb3 100%);
-    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: linear-gradient(135deg, #07163a 0%, #0e699b 100%);
+    color: #fff;
     border-radius: 18px;
-    box-shadow: 0 18px 50px rgba(7, 22, 58, 0.28);
-    color: #ffffff;
-    max-width: 360px;
-    min-width: 260px;
-    padding: 16px 16px 14px;
-    pointer-events: auto;
-    position: fixed;
+    padding: 14px;
+    box-shadow: 0 18px 42px rgba(6, 23, 56, 0.28);
   }
 
-  .card[data-placement="bottom-toast"] {
-    bottom: 24px;
-    right: 24px;
-  }
-
-  .eyebrow {
-    color: rgba(255, 255, 255, 0.76);
-    display: block;
-    font-size: 11px;
+  .card-title {
+    font-size: 15px;
     font-weight: 700;
-    letter-spacing: 0.08em;
-    margin-bottom: 8px;
-    text-transform: uppercase;
-  }
-
-  .title {
-    display: block;
-    font-size: 16px;
-    font-weight: 700;
-    line-height: 1.3;
     margin-bottom: 6px;
   }
 
-  .body {
-    color: rgba(255, 255, 255, 0.92);
-    display: block;
+  .card-body {
     font-size: 13px;
     line-height: 1.45;
-    margin-bottom: 14px;
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 12px;
   }
 
-  .actions {
-    align-items: center;
+  .card-actions {
     display: flex;
-    gap: 10px;
+    gap: 8px;
+    flex-wrap: wrap;
   }
 
-  .cta,
-  .dismiss {
-    appearance: none;
+  .card-cta,
+  .card-dismiss,
+  .chat-send,
+  .chat-prompt {
     border: 0;
     border-radius: 999px;
-    cursor: pointer;
     font: inherit;
+    cursor: pointer;
+  }
+
+  .card-cta,
+  .chat-send,
+  .chat-prompt {
+    background: #fff;
+    color: #07163a;
     font-size: 13px;
+    font-weight: 700;
     padding: 8px 12px;
   }
 
-  .cta {
-    background: #f6f7f9;
-    color: #07163a;
-    font-weight: 700;
-  }
-
-  .dismiss {
+  .card-dismiss {
     background: transparent;
-    color: rgba(255, 255, 255, 0.78);
+    color: rgba(255, 255, 255, 0.84);
     text-decoration: underline;
+    font-size: 13px;
+    padding: 8px 0;
   }
 
   .chat-dock {
-    bottom: 22px;
-    pointer-events: auto;
     position: fixed;
-    right: 22px;
-    z-index: 2147483647;
+    right: 14px;
+    bottom: 14px;
+    pointer-events: auto;
   }
 
   .chat-launcher {
-    align-items: center;
-    appearance: none;
-    background: #07163a;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    width: 48px;
+    height: 48px;
     border-radius: 999px;
-    box-shadow: 0 14px 34px rgba(7, 22, 58, 0.28);
-    color: #ffffff;
-    cursor: pointer;
-    display: flex;
-    font: inherit;
-    font-size: 22px;
+    border: 0;
+    background: #07163a;
+    color: #fff;
+    font-size: 18px;
     font-weight: 800;
-    height: 58px;
-    justify-content: center;
-    width: 58px;
+    cursor: pointer;
+    box-shadow: 0 12px 28px rgba(6, 23, 56, 0.24);
   }
 
   .chat-panel {
-    background: #ffffff;
-    border: 1px solid rgba(7, 22, 58, 0.12);
-    border-radius: 16px;
-    box-shadow: 0 22px 58px rgba(7, 22, 58, 0.28);
+    display: none;
+    width: min(360px, calc(100vw - 28px));
+    height: 430px;
+    margin-bottom: 12px;
+    background: #fff;
     color: #10203d;
-    display: flex;
-    flex-direction: column;
-    height: min(560px, calc(100vh - 48px));
+    border-radius: 20px;
+    box-shadow: 0 24px 60px rgba(6, 23, 56, 0.28);
     overflow: hidden;
-    width: min(420px, calc(100vw - 32px));
+  }
+
+  .chat-panel[data-open="true"] {
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
   }
 
   .chat-header {
-    align-items: center;
-    background: #07163a;
-    color: #ffffff;
-    display: flex;
-    gap: 10px;
-    justify-content: space-between;
-    padding: 13px 14px;
-  }
-
-  .chat-heading {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
+    padding: 14px 16px 8px;
+    border-bottom: 1px solid rgba(6, 23, 56, 0.08);
   }
 
   .chat-title {
     font-size: 14px;
-    font-weight: 800;
+    font-weight: 700;
   }
 
   .chat-subtitle {
-    color: rgba(255, 255, 255, 0.74);
-    font-size: 11px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    margin-top: 4px;
+    font-size: 12px;
+    color: #5a6b85;
   }
 
-  .chat-close {
-    appearance: none;
-    background: rgba(255, 255, 255, 0.12);
-    border: 0;
-    border-radius: 999px;
-    color: #ffffff;
-    cursor: pointer;
-    font: inherit;
-    height: 30px;
-    width: 30px;
+  .chat-prompts {
+    display: flex;
+    gap: 8px;
+    padding: 10px 14px;
+    overflow-x: auto;
+    border-bottom: 1px solid rgba(6, 23, 56, 0.08);
   }
 
   .chat-messages {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    gap: 10px;
-    overflow-y: auto;
     padding: 14px;
+    overflow: auto;
+    display: grid;
+    gap: 10px;
+    background: #f4f7fb;
   }
 
-  .chat-message {
-    border-radius: 13px;
+  .chat-msg {
+    padding: 10px 12px;
+    border-radius: 14px;
     font-size: 13px;
-    line-height: 1.42;
-    max-width: 86%;
-    padding: 9px 11px;
+    line-height: 1.45;
+    max-width: 88%;
     white-space: pre-wrap;
   }
 
-  .chat-message.assistant {
-    align-self: flex-start;
-    background: #eef4fb;
+  .chat-msg[data-role="assistant"] {
+    background: #fff;
     color: #10203d;
+    justify-self: start;
   }
 
-  .chat-message.user {
-    align-self: flex-end;
-    background: #0f6bb3;
-    color: #ffffff;
-  }
-
-  .chat-key,
-  .chat-model {
-    border-top: 1px solid #e5edf6;
-    display: grid;
-    gap: 6px;
-    padding: 10px 12px 0;
-  }
-
-  .chat-model label {
-    color: #5c6a80;
-    font-size: 11px;
-    font-weight: 800;
-  }
-
-  .chat-key input,
-  .chat-model select {
-    background: #ffffff;
-    border: 1px solid #ccd8e6;
-    border-radius: 10px;
-    box-sizing: border-box;
-    color: #10203d;
-    font: inherit;
-    font-size: 12px;
-    padding: 8px 10px;
-    width: 100%;
+  .chat-msg[data-role="user"] {
+    background: #07163a;
+    color: #fff;
+    justify-self: end;
   }
 
   .chat-form {
-    align-items: flex-end;
     display: grid;
-    gap: 8px;
     grid-template-columns: 1fr auto;
-    padding: 10px 12px 12px;
+    gap: 8px;
+    padding: 12px;
+    border-top: 1px solid rgba(6, 23, 56, 0.08);
   }
 
   .chat-input {
-    border: 1px solid #ccd8e6;
-    border-radius: 12px;
-    box-sizing: border-box;
-    color: #10203d;
+    border-radius: 14px;
+    border: 1px solid rgba(6, 23, 56, 0.16);
+    padding: 10px 12px;
     font: inherit;
     font-size: 13px;
-    max-height: 110px;
-    min-height: 42px;
-    padding: 10px 11px;
-    resize: vertical;
-    width: 100%;
-  }
-
-  .chat-send {
-    appearance: none;
-    background: #07163a;
-    border: 0;
-    border-radius: 12px;
-    color: #ffffff;
-    cursor: pointer;
-    font: inherit;
-    font-size: 13px;
-    font-weight: 800;
-    min-height: 42px;
-    padding: 0 14px;
   }
 `;
 
-export interface CoachInteraction {
-  action: CoachAction;
+export interface RenderInteraction {
+  cta: string | null;
+  decision: JourneyDecision;
+  result: "dismissed" | "sent" | "clicked";
   type: "coach_cta" | "coach_dismiss";
 }
 
-export interface ChatRequest {
+interface ChatRequestPayload {
   apiKey?: string;
   messages: ChatMessage[];
-  model: string;
+  model?: string;
 }
 
-interface VisibleLogEntry {
-  message: string;
-  timestamp: number;
+interface CoachRuntimeState {
+  actionable: boolean;
+  apiState: CoachApiStatus["state"];
+  cardCount: number;
+  currentStepId: string | null;
+  decisionState: "idle" | "pending" | "rendered" | "empty" | "error";
+  initialized: boolean;
+  lastRenderAt: number;
+  playId: string | null;
+  renderState: "idle" | "pending" | "rendered" | "empty" | "error";
+  requestFinishedAt: number;
+  requestStartedAt: number;
 }
 
 export class DomInjector {
-  private readonly host: HTMLDivElement;
-  private readonly shadowRootRef: ShadowRoot;
+  private readonly root: HTMLDivElement;
+  private readonly shadow: ShadowRoot;
   private readonly layer: HTMLDivElement;
-  private readonly statusWrap: HTMLDivElement;
   private readonly statusPill: HTMLButtonElement;
-  private readonly statusMessage: HTMLSpanElement;
   private readonly statusPanel: HTMLDivElement;
-  private readonly statusMeta: HTMLDivElement;
   private readonly statusLog: HTMLDivElement;
+  private readonly cardWrap: HTMLDivElement;
   private readonly chatDock: HTMLDivElement;
-  private readonly chatMessages: ChatMessage[] = [
-    {
-      role: "assistant",
-      content: "Hi, I can help with the current UNIQA calculator step. Ask about tariffs, price changes, or what to choose next.",
-    },
-  ];
-  private currentStep: ResolvedStep | null = null;
-  private activeActions = new Map<string, CoachAction>();
-  private impressed = new Set<string>();
-  private expanded = false;
-  private lastStatusKey: string | null = null;
-  private statusLogs: VisibleLogEntry[] = [];
+  private readonly chatPanel: HTMLDivElement;
+  private readonly chatMessages: HTMLDivElement;
+  private readonly chatPrompts: HTMLDivElement;
+  private readonly chatInput: HTMLInputElement;
+  private readonly chatSend: HTMLButtonElement;
+  private readonly chatLauncher: HTMLButtonElement;
+  private readonly hasChatApiKey: boolean;
+  private readonly chatModel: string;
+  private readonly chatModelOptions: string[];
+  private readonly onInteraction: (interaction: RenderInteraction) => void;
+  private readonly onChatRequest: (request: ChatRequestPayload) => Promise<ChatMessage>;
+  private currentDecision: JourneyDecision | null = null;
   private chatOpen = false;
-  private chatLoading = false;
-  private selectedChatModel = this.chatModel;
+  private chatMessagesState: ChatMessage[] = [];
+  private runtimeState: CoachRuntimeState = {
+    actionable: false,
+    apiState: "starting",
+    cardCount: 0,
+    currentStepId: null,
+    decisionState: "idle",
+    initialized: true,
+    lastRenderAt: 0,
+    playId: null,
+    renderState: "idle",
+    requestFinishedAt: 0,
+    requestStartedAt: 0,
+  };
 
   constructor(
-    private readonly onInteraction: (interaction: CoachInteraction) => void,
-    private readonly onChatRequest: (request: ChatRequest) => Promise<ChatMessage>,
-    private readonly hasConfiguredChatApiKey = false,
-    private readonly chatModel = "unknown model",
-    private readonly chatModelOptions = [chatModel],
+    onInteraction: (interaction: RenderInteraction) => void,
+    onChatRequest: (request: ChatRequestPayload) => Promise<ChatMessage>,
+    hasChatApiKey: boolean,
+    chatModel: string,
+    chatModelOptions: string[],
   ) {
-    this.host = document.createElement("div");
-    this.host.id = ROOT_ID;
-    this.shadowRootRef = this.host.attachShadow({ mode: "open" });
+    this.onInteraction = onInteraction;
+    this.onChatRequest = onChatRequest;
+    this.hasChatApiKey = hasChatApiKey;
+    this.chatModel = chatModel;
+    this.chatModelOptions = chatModelOptions;
+
+    this.root = document.getElementById(ROOT_ID) as HTMLDivElement | null ?? document.createElement("div");
+    this.root.id = ROOT_ID;
+    if (!this.root.isConnected) {
+      document.documentElement.appendChild(this.root);
+    }
+    this.shadow = this.root.shadowRoot ?? this.root.attachShadow({ mode: "open" });
+    this.shadow.innerHTML = "";
+
     const style = document.createElement("style");
     style.textContent = STYLES;
     this.layer = document.createElement("div");
     this.layer.className = "layer";
 
-    this.statusWrap = document.createElement("div");
-    this.statusWrap.className = "status-wrap";
+    const status = document.createElement("div");
+    status.className = "status";
     this.statusPill = document.createElement("button");
-    this.statusPill.className = "status-pill";
-    this.statusPill.type = "button";
+    this.statusPill.className = "pill";
+    this.statusPill.dataset.state = "starting";
+    this.statusPill.textContent = "UNIQA Runtime";
     this.statusPill.addEventListener("click", () => {
-      this.expanded = !this.expanded;
-      this.statusPanel.hidden = !this.expanded;
+      this.statusPanel.dataset.open = this.statusPanel.dataset.open === "true" ? "false" : "true";
     });
-
-    const statusDot = document.createElement("span");
-    statusDot.className = "status-dot";
-    const statusText = document.createElement("span");
-    statusText.className = "status-pill-text";
-    const statusTitle = document.createElement("span");
-    statusTitle.className = "status-pill-title";
-    statusTitle.textContent = "Coach API";
-    this.statusMessage = document.createElement("span");
-    this.statusMessage.className = "status-pill-message";
-    statusText.append(statusTitle, this.statusMessage);
-    this.statusPill.append(statusDot, statusText);
 
     this.statusPanel = document.createElement("div");
-    this.statusPanel.className = "status-panel";
-    this.statusPanel.hidden = true;
-    const panelTitle = document.createElement("strong");
-    panelTitle.className = "status-panel-title";
-    panelTitle.textContent = "Extension status";
-    this.statusMeta = document.createElement("div");
-    this.statusMeta.className = "status-meta";
-    const logLabel = document.createElement("span");
-    logLabel.className = "status-section-label";
-    logLabel.textContent = "Recent events";
+    this.statusPanel.className = "panel";
+    this.statusPanel.dataset.open = "false";
+    const statusTitle = document.createElement("div");
+    statusTitle.className = "panel-title";
+    statusTitle.textContent = "Runtime status";
+    const statusCopy = document.createElement("div");
+    statusCopy.className = "panel-copy";
+    statusCopy.textContent = "The extension decides locally, then asks the runtime API for one conversion play.";
     this.statusLog = document.createElement("div");
-    this.statusLog.className = "status-log";
-    this.statusPanel.append(panelTitle, this.statusMeta, logLabel, this.statusLog);
+    this.statusPanel.append(statusTitle, statusCopy, this.statusLog);
+    status.append(this.statusPill, this.statusPanel);
 
-    this.statusWrap.append(this.statusPill, this.statusPanel);
-    this.layer.append(this.statusWrap);
+    this.cardWrap = document.createElement("div");
+    this.cardWrap.className = "card-wrap";
+
     this.chatDock = document.createElement("div");
     this.chatDock.className = "chat-dock";
-    this.shadowRootRef.append(style, this.layer, this.chatDock);
-    document.body.appendChild(this.host);
-    this.renderChat();
-
-    window.addEventListener("scroll", this.reposition, { passive: true });
-    window.addEventListener("resize", this.reposition);
-
-    this.updateStatus({
-      endpoint: "waiting",
-      lastUpdatedAt: Date.now(),
-      message: "Initializing extension",
-      policyVersion: null,
-      state: "starting",
+    this.chatPanel = document.createElement("div");
+    this.chatPanel.className = "chat-panel";
+    this.chatPanel.dataset.open = "false";
+    const chatHeader = document.createElement("div");
+    chatHeader.className = "chat-header";
+    const chatTitle = document.createElement("div");
+    chatTitle.className = "chat-title";
+    chatTitle.textContent = "Conversion Coach";
+    const chatSubtitle = document.createElement("div");
+    chatSubtitle.className = "chat-subtitle";
+    chatSubtitle.textContent = this.hasChatApiKey
+      ? `Chat model: ${this.chatModelOptions[0] ?? this.chatModel}`
+      : "Chat is available after adding an API key.";
+    chatHeader.append(chatTitle, chatSubtitle);
+    this.chatPrompts = document.createElement("div");
+    this.chatPrompts.className = "chat-prompts";
+    this.chatMessages = document.createElement("div");
+    this.chatMessages.className = "chat-messages";
+    this.chatInput = document.createElement("input");
+    this.chatInput.className = "chat-input";
+    this.chatInput.placeholder = "Frage zum aktuellen Schritt";
+    this.chatSend = document.createElement("button");
+    this.chatSend.className = "chat-send";
+    this.chatSend.textContent = "Senden";
+    const chatForm = document.createElement("form");
+    chatForm.className = "chat-form";
+    chatForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void this.submitChat(this.chatInput.value.trim());
     });
+    chatForm.append(this.chatInput, this.chatSend);
+    this.chatPanel.append(chatHeader, this.chatPrompts, this.chatMessages, chatForm);
+    this.chatLauncher = document.createElement("button");
+    this.chatLauncher.className = "chat-launcher";
+    this.chatLauncher.textContent = "?";
+    this.chatLauncher.addEventListener("click", () => {
+      this.setChatOpen(!this.chatOpen);
+    });
+    this.chatDock.append(this.chatPanel, this.chatLauncher);
+
+    this.layer.append(status, this.cardWrap, this.chatDock);
+    this.shadow.append(style, this.layer);
+
+    this.renderChatPrompts([]);
+    this.renderMessages();
+    this.syncRuntimeState();
   }
 
-  clear(): void {
-    this.activeActions.clear();
-    this.layer.replaceChildren(this.statusWrap);
-  }
-
-  render(actions: CoachAction[], step: ResolvedStep | null): CoachAction[] {
-    this.currentStep = step;
-    this.layer.replaceChildren(this.statusWrap);
-    this.activeActions.clear();
-
-    const displayed: CoachAction[] = [];
-    for (const action of actions) {
-      const card = this.renderCard(action);
-      this.activeActions.set(action.id, action);
-      this.layer.appendChild(card);
-      displayed.push(action);
-    }
-
-    this.reposition();
-    return displayed.filter((action) => {
-      if (this.impressed.has(action.id)) {
-        return false;
-      }
-      this.impressed.add(action.id);
-      return true;
+  clear(stepId: string | null = null): void {
+    this.currentDecision = null;
+    this.cardWrap.replaceChildren();
+    this.setRuntimeState({
+      actionable: false,
+      cardCount: 0,
+      currentStepId: stepId,
+      decisionState: "idle",
+      playId: null,
+      renderState: "idle",
     });
   }
 
   updateStatus(status: CoachApiStatus): void {
     this.statusPill.dataset.state = status.state;
-    this.statusMessage.textContent = status.message;
-    const formattedTime = formatTime(status.lastUpdatedAt);
-    this.statusMeta.replaceChildren(
-      buildMetaLine(`State: ${status.state}`),
-      buildMetaLine(`Endpoint: ${status.endpoint}`),
-      buildMetaLine(
-        `Policy: ${status.policyVersion !== null ? `v${status.policyVersion}` : "not available"}`,
-      ),
-      buildMetaLine(`Updated: ${formattedTime}`),
-    );
+    this.statusPill.textContent = `UNIQA Runtime: ${status.state}`;
+    this.setRuntimeState({
+      apiState: status.state,
+    });
+    this.addLogMessage(status.message);
+  }
 
-    const dedupeKey = `${status.state}:${status.policyVersion ?? "none"}:${status.message}`;
-    if (this.lastStatusKey !== dedupeKey) {
-      this.lastStatusKey = dedupeKey;
-      this.pushLogEntry(status.lastUpdatedAt, status.message);
+  beginDecisionCycle(stepId: string | null): void {
+    this.setRuntimeState({
+      actionable: false,
+      currentStepId: stepId,
+      decisionState: "pending",
+      playId: null,
+      renderState: "pending",
+      requestStartedAt: Date.now(),
+    });
+  }
+
+  finishDecisionCycle(stepId: string | null, result: "empty" | "error"): void {
+    this.setRuntimeState({
+      actionable: false,
+      cardCount: 0,
+      currentStepId: stepId,
+      decisionState: result,
+      playId: null,
+      renderState: result,
+      requestFinishedAt: Date.now(),
+    });
+  }
+
+  addLogMessage(message: string): void {
+    const entry = document.createElement("div");
+    entry.className = "log-entry";
+    entry.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+    this.statusLog.prepend(entry);
+    while (this.statusLog.childElementCount > 6) {
+      this.statusLog.lastElementChild?.remove();
     }
   }
 
-  addLogMessage(message: string, timestamp = Date.now()): void {
-    this.pushLogEntry(timestamp, message);
+  render(decision: JourneyDecision, step: ResolvedStep | null): JourneyDecision | null {
+    this.clear(step?.pageStepId ?? null);
+    this.currentDecision = decision;
+    this.renderCard(decision);
+    this.renderChatPrompts(
+      decision.domMutations
+        .filter((mutation) => mutation.kind === "chat_link" && mutation.label && mutation.prompt)
+        .map((mutation) => ({ label: mutation.label!, prompt: mutation.prompt! })),
+    );
+    this.setRuntimeState({
+      actionable: Boolean(decision.cards[0]?.cta),
+      cardCount: decision.cards.length,
+      currentStepId: step?.pageStepId ?? null,
+      decisionState: "rendered",
+      lastRenderAt: Date.now(),
+      playId: decision.playId,
+      renderState: "rendered",
+      requestFinishedAt: Date.now(),
+    });
+    return decision;
   }
 
-  private renderCard(action: CoachAction): HTMLElement {
-    const card = document.createElement("section");
-    card.className = "card";
-    card.dataset.actionId = action.id;
-    card.dataset.placement = action.placement;
+  private renderCard(decision: JourneyDecision): void {
+    const card = decision.cards[0];
+    if (!card) {
+      return;
+    }
 
-    const eyebrow = document.createElement("span");
-    eyebrow.className = "eyebrow";
-    eyebrow.textContent = "Conversion Coach";
-
-    const title = document.createElement("strong");
-    title.className = "title";
-    title.textContent = action.title;
-
-    const body = document.createElement("span");
-    body.className = "body";
-    body.textContent = action.body;
-
+    const wrap = document.createElement("div");
+    wrap.className = "card";
+    const title = document.createElement("div");
+    title.className = "card-title";
+    title.textContent = card.title;
+    const body = document.createElement("div");
+    body.className = "card-body";
+    body.textContent = card.body;
     const actions = document.createElement("div");
-    actions.className = "actions";
+    actions.className = "card-actions";
 
-    if (action.ctaLabel) {
+    if (card.cta) {
       const cta = document.createElement("button");
-      cta.className = "cta";
-      cta.type = "button";
-      cta.textContent = action.ctaLabel;
+      cta.className = "card-cta";
+      cta.textContent = card.cta.label;
       cta.addEventListener("click", () => {
-        this.onInteraction({ action, type: "coach_cta" });
+        this.handleDecisionCta(decision, card.cta?.label ?? null, card.cta?.prompt ?? null);
       });
       actions.appendChild(cta);
     }
 
-    if (action.dismissible) {
+    if (card.dismissible) {
       const dismiss = document.createElement("button");
-      dismiss.className = "dismiss";
-      dismiss.type = "button";
-      dismiss.textContent = "Schließen";
+      dismiss.className = "card-dismiss";
+      dismiss.textContent = "Ausblenden";
       dismiss.addEventListener("click", () => {
-        this.onInteraction({ action, type: "coach_dismiss" });
-        card.remove();
-        this.activeActions.delete(action.id);
+        this.cardWrap.replaceChildren();
+        this.setRuntimeState({
+          actionable: false,
+          cardCount: 0,
+          decisionState: "empty",
+          playId: null,
+          renderState: "empty",
+          requestFinishedAt: Date.now(),
+        });
+        this.onInteraction({
+          cta: null,
+          decision,
+          result: "dismissed",
+          type: "coach_dismiss",
+        });
       });
       actions.appendChild(dismiss);
     }
 
-    card.append(eyebrow, title, body, actions);
-    return card;
+    wrap.append(title, body, actions);
+    this.cardWrap.appendChild(wrap);
   }
 
-  private renderChat(): void {
-    this.chatDock.replaceChildren();
+  private handleDecisionCta(decision: JourneyDecision, label: string | null, prompt: string | null): void {
+    if (prompt) {
+      this.setChatOpen(true);
+      void this.submitChat(prompt, true);
+    }
+    this.onInteraction({
+      cta: label,
+      decision,
+      result: "clicked",
+      type: "coach_cta",
+    });
+  }
 
-    if (!this.chatOpen) {
-      const launcher = document.createElement("button");
-      launcher.className = "chat-launcher";
-      launcher.type = "button";
-      launcher.textContent = "?";
-      launcher.title = "Open UNIQA Coach chat";
-      launcher.addEventListener("click", () => {
-        this.chatOpen = true;
-        this.renderChat();
+  private renderChatPrompts(prompts: Array<{ label: string; prompt: string }>): void {
+    this.chatPrompts.replaceChildren();
+    for (const prompt of prompts.slice(0, 3)) {
+      const button = document.createElement("button");
+      button.className = "chat-prompt";
+      button.type = "button";
+      button.textContent = prompt.label;
+      button.addEventListener("click", () => {
+        this.setChatOpen(true);
+        void this.submitChat(prompt.prompt, true);
       });
-      this.chatDock.appendChild(launcher);
+      this.chatPrompts.appendChild(button);
+    }
+  }
+
+  private async submitChat(message: string, fromPreset = false): Promise<void> {
+    if (!message) {
       return;
     }
 
-    const panel = document.createElement("section");
-    panel.className = "chat-panel";
+    this.chatInput.value = "";
+    const userMessage: ChatMessage = {
+      role: "user",
+      content: message,
+    };
+    this.chatMessagesState.push(userMessage);
+    this.renderMessages();
 
-    const header = document.createElement("div");
-    header.className = "chat-header";
-
-    const heading = document.createElement("div");
-    heading.className = "chat-heading";
-    const title = document.createElement("strong");
-    title.className = "chat-title";
-    title.textContent = "UNIQA Coach Chat";
-    const subtitle = document.createElement("span");
-    subtitle.className = "chat-subtitle";
-    subtitle.textContent = `Featherless · ${this.selectedChatModel}`;
-    heading.append(title, subtitle);
-
-    const close = document.createElement("button");
-    close.className = "chat-close";
-    close.type = "button";
-    close.textContent = "x";
-    close.addEventListener("click", () => {
-      this.chatOpen = false;
-      this.renderChat();
+    const assistantMessage = await this.onChatRequest({
+      messages: this.chatMessagesState,
+      model: this.chatModel,
     });
-    header.append(heading, close);
+    this.chatMessagesState.push(assistantMessage);
+    this.renderMessages();
 
-    const messages = document.createElement("div");
-    messages.className = "chat-messages";
-    for (const message of this.chatMessages) {
+    if (this.currentDecision) {
+      this.onInteraction({
+        cta: fromPreset ? message : "chat_send",
+        decision: this.currentDecision,
+        result: "sent",
+        type: "coach_cta",
+      });
+    }
+  }
+
+  private renderMessages(): void {
+    this.chatMessages.replaceChildren();
+    if (!this.chatMessagesState.length) {
+      const starter = document.createElement("div");
+      starter.className = "chat-msg";
+      starter.dataset.role = "assistant";
+      starter.textContent = this.hasChatApiKey
+        ? "Stellen Sie eine kurze Frage zum aktuellen Tarif oder Schritt."
+        : "Verbinden Sie einen API-Schluessel, um Chat-Antworten zu erhalten.";
+      this.chatMessages.appendChild(starter);
+      return;
+    }
+
+    for (const message of this.chatMessagesState) {
       const bubble = document.createElement("div");
-      bubble.className = `chat-message ${message.role}`;
+      bubble.className = "chat-msg";
+      bubble.dataset.role = message.role;
       bubble.textContent = message.content;
-      messages.appendChild(bubble);
+      this.chatMessages.appendChild(bubble);
     }
-    if (this.chatLoading) {
-      const bubble = document.createElement("div");
-      bubble.className = "chat-message assistant";
-      bubble.textContent = "Thinking...";
-      messages.appendChild(bubble);
-    }
-
-    const keyWrap = document.createElement("div");
-    keyWrap.className = "chat-key";
-    const keyInput = document.createElement("input");
-    keyInput.autocomplete = "off";
-    keyInput.placeholder = "Featherless API key (saved locally after first send)";
-    keyInput.type = "password";
-    if (!this.hasConfiguredChatApiKey) {
-      keyWrap.appendChild(keyInput);
-    }
-
-    const modelWrap = document.createElement("div");
-    modelWrap.className = "chat-model";
-    const modelLabel = document.createElement("label");
-    modelLabel.textContent = "Model";
-    const modelSelect = document.createElement("select");
-    for (const model of this.normalizedModelOptions()) {
-      const option = document.createElement("option");
-      option.value = model;
-      option.textContent = model;
-      option.selected = model === this.selectedChatModel;
-      modelSelect.appendChild(option);
-    }
-    modelSelect.addEventListener("change", () => {
-      this.selectedChatModel = modelSelect.value;
-      this.renderChat();
-    });
-    modelWrap.append(modelLabel, modelSelect);
-
-    const form = document.createElement("form");
-    form.className = "chat-form";
-    const input = document.createElement("textarea");
-    input.className = "chat-input";
-    input.placeholder = "Ask the coach...";
-    input.rows = 2;
-    const send = document.createElement("button");
-    send.className = "chat-send";
-    send.disabled = this.chatLoading;
-    send.textContent = this.chatLoading ? "..." : "Send";
-    send.type = "submit";
-    form.append(input, send);
-    form.addEventListener("submit", (event) => {
-      event.preventDefault();
-      void this.submitChat(input.value, keyInput.value);
-    });
-
-    if (keyWrap.childElementCount > 0) {
-      panel.append(header, messages, modelWrap, keyWrap, form);
-    } else {
-      panel.append(header, messages, modelWrap, form);
-    }
-    this.chatDock.appendChild(panel);
-    messages.scrollTop = messages.scrollHeight;
-    input.focus();
+    this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
   }
 
-  private async submitChat(rawMessage: string, rawApiKey: string): Promise<void> {
-    const content = rawMessage.trim();
-    const apiKey = rawApiKey.trim();
-    if (!content || this.chatLoading) {
-      return;
-    }
-
-    this.chatMessages.push({ role: "user", content });
-    this.chatLoading = true;
-    this.renderChat();
-
-    const reply = await this.onChatRequest({
-      apiKey: apiKey || undefined,
-      messages: [...this.chatMessages],
-      model: this.selectedChatModel,
-    });
-    this.chatMessages.push(reply);
-    this.chatLoading = false;
-    this.renderChat();
+  private setChatOpen(open: boolean): void {
+    this.chatOpen = open;
+    this.chatPanel.dataset.open = open ? "true" : "false";
   }
 
-  private normalizedModelOptions(): string[] {
-    const options = [this.chatModel, ...this.chatModelOptions]
-      .map((model) => model.trim())
-      .filter(Boolean);
-    return [...new Set(options)];
+  private setRuntimeState(next: Partial<CoachRuntimeState>): void {
+    this.runtimeState = {
+      ...this.runtimeState,
+      ...next,
+    };
+    this.syncRuntimeState();
   }
 
-  private readonly reposition = (): void => {
-    for (const node of Array.from(this.layer.children)) {
-      if (!(node instanceof HTMLElement) || node === this.statusWrap) {
-        continue;
-      }
-
-      const placement = (node.dataset.placement as CoachPlacement | undefined) ?? "bottom-toast";
-      if (placement === "bottom-toast") {
-        node.style.bottom = "24px";
-        node.style.left = "auto";
-        node.style.right = "24px";
-        node.style.top = "auto";
-        continue;
-      }
-
-      const anchor = resolveAnchor(this.currentStep, placement);
-      if (!anchor) {
-        node.style.top = "24px";
-        node.style.left = "24px";
-        continue;
-      }
-
-      const rect = anchor.getBoundingClientRect();
-      node.style.left = `${Math.max(16, Math.min(rect.left, window.innerWidth - 392))}px`;
-      node.style.top =
-        placement === "near-primary-cta"
-          ? `${Math.max(16, rect.top - node.offsetHeight - 12)}px`
-          : `${Math.max(16, rect.top + 8)}px`;
-    }
-  };
-
-  private pushLogEntry(timestamp: number, message: string): void {
-    this.statusLogs = [{ message, timestamp }, ...this.statusLogs].slice(0, 8);
-    this.statusLog.replaceChildren(
-      ...this.statusLogs.map((entry) => {
-        const row = document.createElement("div");
-        row.className = "status-log-entry";
-        const time = document.createElement("span");
-        time.className = "status-log-time";
-        time.textContent = formatTime(entry.timestamp);
-        const text = document.createElement("span");
-        text.textContent = entry.message;
-        row.append(time, text);
-        return row;
-      }),
-    );
+  private syncRuntimeState(): void {
+    const serialized = {
+      ...this.runtimeState,
+    };
+    (window as Window & { __UNIQA_COACH_STATE__?: CoachRuntimeState }).__UNIQA_COACH_STATE__ =
+      serialized;
+    this.root.dataset.initialized = String(serialized.initialized);
+    this.root.dataset.apiState = serialized.apiState;
+    this.root.dataset.currentStepId = serialized.currentStepId ?? "";
+    this.root.dataset.decisionState = serialized.decisionState;
+    this.root.dataset.cardCount = String(serialized.cardCount);
+    this.root.dataset.actionable = String(serialized.actionable);
+    this.root.dataset.playId = serialized.playId ?? "";
+    this.root.dataset.lastRenderAt = String(serialized.lastRenderAt);
+    this.root.dataset.requestStartedAt = String(serialized.requestStartedAt);
+    this.root.dataset.requestFinishedAt = String(serialized.requestFinishedAt);
+    this.root.dataset.renderState = serialized.renderState;
   }
-}
-
-function resolveAnchor(step: ResolvedStep | null, placement: CoachPlacement): Element | null {
-  if (!step) {
-    return null;
-  }
-
-  if (placement === "near-primary-cta") {
-    return queryFirst(document, step.config.selectors.primaryCta);
-  }
-
-  return queryFirst(document, step.config.selectors.stepAnchor);
-}
-
-function buildMetaLine(text: string): HTMLElement {
-  const line = document.createElement("span");
-  line.textContent = text;
-  return line;
-}
-
-function formatTime(timestamp: number): string {
-  if (!timestamp) {
-    return "--:--:--";
-  }
-
-  return new Date(timestamp).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
 }

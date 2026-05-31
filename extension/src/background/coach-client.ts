@@ -1,148 +1,96 @@
 import type {
   CoachApiStatus,
-  CoachRequest,
-  CoachResponse,
-  NormalizedEvent,
-  SignalKind,
+  JourneyDecision,
+  JourneyOutcome,
+  JourneySnapshot,
 } from "@/shared/contracts";
+import { createLogger } from "@/shared/logger";
+
+const log = createLogger("runtime-client");
 
 const DEFAULT_ORIGIN = (
   import.meta.env?.VITE_COACH_API_ORIGIN ?? "http://127.0.0.1:8787"
 ).replace(/\/+$/, "");
-const DEFAULT_V2_ENDPOINT = `${DEFAULT_ORIGIN}/api/v2/events`;
-const DEFAULT_LEGACY_ENDPOINT = `${DEFAULT_ORIGIN}/api/v1/coach/evaluate`;
 
-export interface CoachEvaluationResult {
+export interface RuntimeDecisionResult {
   apiStatus: CoachApiStatus;
-  response: CoachResponse;
-}
-
-export interface CoachEvaluationInput {
-  event: NormalizedEvent;
-  fallbackRequest: CoachRequest;
-  signals: SignalKind[];
+  decision: JourneyDecision | null;
 }
 
 export class CoachClient {
   constructor(
-    private readonly primaryEndpoint = DEFAULT_V2_ENDPOINT,
-    private readonly legacyEndpoint = DEFAULT_LEGACY_ENDPOINT,
+    private readonly decideEndpoint = `${DEFAULT_ORIGIN}/api/runtime/decide`,
+    private readonly outcomeEndpoint = `${DEFAULT_ORIGIN}/api/runtime/outcome`,
     private readonly fetchImpl: typeof fetch = (input, init) => globalThis.fetch(input, init),
   ) {}
 
-  async evaluate(input: CoachEvaluationInput): Promise<CoachEvaluationResult> {
+  async decide(snapshot: JourneySnapshot): Promise<RuntimeDecisionResult> {
     try {
-      const response = await this.fetchImpl(this.primaryEndpoint, {
-        body: JSON.stringify(buildV2EventPayload(input.event, input.signals)),
+      const response = await this.fetchImpl(this.decideEndpoint, {
+        body: JSON.stringify(snapshot),
         headers: {
           "Content-Type": "application/json",
         },
         method: "POST",
       });
 
-      if (response.status === 404 || response.status === 405) {
-        return await this.evaluateLegacy(input.fallbackRequest);
-      }
-
       if (!response.ok) {
-        throw new Error(`Coach API returned ${response.status}`);
+        throw new Error(`Runtime API returned ${response.status}`);
       }
 
-      const parsed = (await response.json()) as {
-        actions?: CoachResponse["actions"];
-      };
-      const apiStatus: CoachApiStatus = {
-        endpoint: this.primaryEndpoint,
-        lastUpdatedAt: Date.now(),
-        message: "Connected to coach API (v2 events)",
-        policyVersion: null,
-        state: "connected",
-      };
-      console.info("[UNIQA Coach] API connected", apiStatus);
+      const parsed = (await response.json()) as { decision?: JourneyDecision | null };
       return {
-        apiStatus,
-        response: {
-          actions: parsed.actions ?? [],
-          policyVersion: null,
-          source: "remote",
+        apiStatus: {
+          endpoint: this.decideEndpoint,
+          lastUpdatedAt: Date.now(),
+          message: "Connected to runtime API",
+          state: "connected",
         },
+        decision: parsed.decision ?? null,
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown coach API error";
-      const apiStatus: CoachApiStatus = {
-        endpoint: this.primaryEndpoint,
-        lastUpdatedAt: Date.now(),
+      const message = error instanceof Error ? error.message : "Unknown runtime API error";
+      log.error("Runtime decide request failed", {
+        endpoint: this.decideEndpoint,
         message,
-        policyVersion: null,
+      });
+      return {
+        apiStatus: {
+          endpoint: this.decideEndpoint,
+          lastUpdatedAt: Date.now(),
+          message,
+          state: "error",
+        },
+        decision: null,
+      };
+    }
+  }
+
+  async sendOutcome(outcome: JourneyOutcome): Promise<CoachApiStatus> {
+    try {
+      const response = await this.fetchImpl(this.outcomeEndpoint, {
+        body: JSON.stringify(outcome),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        method: "POST",
+      });
+      if (!response.ok) {
+        throw new Error(`Runtime API returned ${response.status}`);
+      }
+      return {
+        endpoint: this.outcomeEndpoint,
+        lastUpdatedAt: Date.now(),
+        message: "Outcome stored",
+        state: "connected",
+      };
+    } catch (error) {
+      return {
+        endpoint: this.outcomeEndpoint,
+        lastUpdatedAt: Date.now(),
+        message: error instanceof Error ? error.message : "Unknown runtime API error",
         state: "error",
       };
-      console.warn("[UNIQA Coach] API error", apiStatus);
-      return {
-        apiStatus,
-        response: {
-          actions: [],
-          policyVersion: null,
-          source: "remote_error",
-        },
-      };
     }
   }
-
-  private async evaluateLegacy(request: CoachRequest): Promise<CoachEvaluationResult> {
-    const response = await this.fetchImpl(this.legacyEndpoint, {
-      body: JSON.stringify(request),
-      headers: {
-        "Content-Type": "application/json",
-      },
-      method: "POST",
-    });
-
-    if (!response.ok) {
-      throw new Error(`Coach API returned ${response.status}`);
-    }
-
-    const parsed = (await response.json()) as CoachResponse;
-    const apiStatus: CoachApiStatus = {
-      endpoint: this.legacyEndpoint,
-      lastUpdatedAt: Date.now(),
-      message: `Connected to coach API${parsed.policyVersion !== null ? ` (policy v${parsed.policyVersion})` : ""}`,
-      policyVersion: parsed.policyVersion,
-      state: "connected",
-    };
-    console.info("[UNIQA Coach] API connected", apiStatus);
-    return {
-      apiStatus,
-      response: parsed,
-    };
-  }
-}
-
-function buildV2EventPayload(event: NormalizedEvent, signals: SignalKind[]): Record<string, unknown> {
-  return {
-    schema_version: "v1",
-    event_id: event.id,
-    session_id: event.sessionId,
-    ts: event.ts,
-    source: "extension",
-    step_id: event.pageStepId,
-    event_type: event.type,
-    element_key: event.elementKey,
-    raw_value: normalizeRawValue(event.value),
-    derived_signals: Object.fromEntries(signals.map((signal) => [signal, true])),
-    derived_context: event.derivedContext,
-    runner_metadata: {},
-    privacy_level: "anonymous",
-  };
-}
-
-function normalizeRawValue(value: NormalizedEvent["value"]): Record<string, unknown> {
-  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-    return value;
-  }
-
-  if (value === null) {
-    return {};
-  }
-
-  return { value };
 }

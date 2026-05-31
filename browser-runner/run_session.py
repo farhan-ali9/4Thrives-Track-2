@@ -3,19 +3,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import os
-import sys
 import time
 import uuid
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "training"))
-from action_ranker import DEFAULT_CANDIDATES, load_ranker, predict_action
-
-from backend_client import CoachApiClient, CoachApiError
+from backend_client import RuntimeApiClient, RuntimeApiError
 from errors import BackendFailure, PageLoadFailure, SelectorFailure
 from event_factory import make_runner_event, make_step_event
 from live_page import (
@@ -25,11 +19,17 @@ from live_page import (
     dismiss_cookie_banner,
     generate_sv,
     install_runner_shim,
+    read_extension_state,
     read_runner_shim,
+    wait_for_coach_cycle,
+    wait_for_extension_ready,
 )
 from llm_persona import LLMPersonaDriver, PersonaDecision
 from persona_policy import ONLINE_STEPS, classify_outcome, load_personas
 from playwright_config import BrowserRunConfig, RunnerSafetyConfig
+
+
+ADVISOR_OUTCOME = "submitted_advisor_lead"
 
 
 def _now_ms() -> int:
@@ -65,29 +65,31 @@ def _metadata(config: BrowserRunConfig, *, experiment_id: str, persona_id: str, 
         "extension_build_id": config.extension_build_id,
         "page_map_version": config.page_map_version,
         "backend_url": config.backend_url,
-        "model_version_or_policy": config.model_version_or_policy,
         "run_mode": config.execution_mode,
         "instrumentation_mode": "extension" if config.execution_mode == "coach" else "runner_shim",
         "llm_model": config.llm_model,
         "site_timestamp": _now_ms(),
-        "leonardo_job_id": None,
     }
 
 
-def _ranker_model_path() -> Path:
-    return Path(os.getenv("TRAINABLE_RANKER_MODEL", "artifacts/training/frequency-ranker.json"))
-
-
-def _intervention_for_step(step_id: str, config: BrowserRunConfig) -> str | None:
-    if config.model_version_or_policy == "baseline-no-coach":
+def _mock_play_for_step(step_id: str, execution_mode: str) -> str | None:
+    if execution_mode != "coach":
         return None
-    if config.model_version_or_policy == "trainable-ranker":
-        model_path = _ranker_model_path()
-        if not model_path.exists():
-            raise RuntimeError(f"TRAINABLE_RANKER_MODEL does not exist: {model_path}")
-        model = load_ranker(model_path)
-        return predict_action(model, step_id=step_id, candidates=DEFAULT_CANDIDATES)
-    return "price_transparency" if step_id in {"s4_initial_price", "s7_final_price"} else None
+    if step_id in {"s3_quote_basics", "s6_personal_medical_data"}:
+        return "trust_builder"
+    if step_id == "s4_initial_price":
+        return "price_reframe"
+    if step_id == "s7_final_price":
+        return "price_change_explainer"
+    return None
+
+
+def _normalize_outcome(outcome: str | None) -> str:
+    if outcome == "advisor_handoff":
+        return ADVISOR_OUTCOME
+    if outcome in {"converted_online", ADVISOR_OUTCOME, "abandoned"}:
+        return outcome
+    return "abandoned"
 
 
 def _generate_profile(persona_id: str, seed: int) -> SessionProfile:
@@ -123,20 +125,44 @@ def run_mock_session(*, persona_id: str, intention: str, experiment_id: str, see
     metadata = _metadata(config, experiment_id=experiment_id, persona_id=persona_id, intention=intention, seed=seed)
     events: list[dict[str, Any]] = []
     llm_decisions: list[dict[str, Any]] = []
+    coach_render_log: list[dict[str, Any]] = []
     for index, step_id in enumerate(ONLINE_STEPS):
-        intervention = _intervention_for_step(step_id, config)
-        action = policy.action_for_step(step_id=step_id, intention=intention, intervention_kind=intervention, seed=seed)
+        play_id = _mock_play_for_step(step_id, config.execution_mode)
+        action = policy.action_for_step(step_id=step_id, intention=intention, intervention_kind=play_id, seed=seed)
+        events.append(make_step_event(session_id=session_id, step_id=step_id, event_type="step_enter", runner_metadata=metadata))
+        if play_id:
+            coach_render_log.append({
+                "decision_state": "rendered",
+                "play_id": play_id,
+                "rendered": True,
+                "step_id": step_id,
+                "waited_ms": 0,
+            })
+            events.append(
+                make_runner_event(
+                    session_id=session_id,
+                    event_id=f"evt_{uuid.uuid4().hex[:12]}",
+                    ts=_now_ms() + index,
+                    source="browser-runner-mock",
+                    step_id=step_id,
+                    event_type="coach_impression",
+                    element_key=play_id,
+                    raw_value={"play_id": play_id},
+                    derived_context={"intervention_kind": play_id},
+                    runner_metadata=metadata,
+                )
+            )
         events.append(
             make_runner_event(
                 session_id=session_id,
                 event_id=f"evt_{uuid.uuid4().hex[:12]}",
-                ts=_now_ms() + index,
+                ts=_now_ms() + index + 1,
                 source="browser-runner-mock",
                 step_id=step_id,
                 event_type="persona_action",
                 element_key=action["element_key"],
                 raw_value={"action": action["action"], "dwell_ms": action["dwell_ms"]},
-                derived_context={"intervention_kind": intervention} if intervention else {},
+                derived_context={"intervention_kind": play_id} if play_id else {},
                 runner_metadata=metadata,
             )
         )
@@ -159,7 +185,7 @@ def run_mock_session(*, persona_id: str, intention: str, experiment_id: str, see
         )
         if action["action"] in {"abandon", "request_advisor"}:
             break
-    outcome = classify_outcome([{**event, "action": event["raw_value"].get("action")} for event in events])
+    outcome = _normalize_outcome(classify_outcome([{**event, "action": event.get("raw_value", {}).get("action")} for event in events]))
     if events:
         events[-1]["terminal_outcome"] = outcome
     return {
@@ -169,6 +195,9 @@ def run_mock_session(*, persona_id: str, intention: str, experiment_id: str, see
         "llm_decisions": llm_decisions,
         "run_mode": config.execution_mode,
         "instrumentation_mode": metadata["instrumentation_mode"],
+        "artifacts": [],
+        "runtime_trace": None,
+        "coach_render_log": coach_render_log,
         "terminal_outcome": outcome,
     }
 
@@ -183,7 +212,7 @@ def _wait_for_step(page: Any, *, timeout_ms: int = 25_000) -> dict[str, Any]:
     raise SelectorFailure("Unable to detect a supported UNIQA step before timeout")
 
 
-def _append_baseline_event(
+def _append_runner_event(
     events: list[dict[str, Any]],
     *,
     session_id: str,
@@ -221,28 +250,14 @@ def _coach_overlay_text(page: Any) -> str:
         """
         () => {
           const shadow = document.querySelector("#uniqa-conversion-coach-root")?.shadowRoot;
-          const target = shadow?.querySelector(".cta, .dismiss");
+          const state = window.__UNIQA_COACH_STATE__;
+          if (!state?.cardCount) return "";
+          const target = shadow?.querySelector(".card");
           if (!target) return "";
-          return shadow?.textContent?.trim() || "";
+          return target.textContent?.trim() || "";
         }
         """
     )
-
-
-def _wait_for_coach_overlay(page: Any, *, timeout_ms: int, settle_ms: int = 0) -> bool:
-    if timeout_ms <= 0:
-        return False
-    started = time.time()
-    while (time.time() - started) * 1000 < timeout_ms:
-        try:
-            if _coach_overlay_text(page):
-                if settle_ms > 0:
-                    page.wait_for_timeout(settle_ms)
-                return True
-        except Exception:
-            return False
-        page.wait_for_timeout(150)
-    return False
 
 
 def _post_action_settle(page: Any, safety: RunnerSafetyConfig, *, coach_mode: bool) -> None:
@@ -300,7 +315,7 @@ def _answer_visible_no_options(page: Any) -> None:
 
 def _terminal_outcome_for_element(element_key: str | None) -> str | None:
     if element_key in {"hospital", "both", "other_persons"}:
-        return "advisor_handoff"
+        return ADVISOR_OUTCOME
     return None
 
 
@@ -359,12 +374,6 @@ def _complete_questionnaire_to_boundary(page: Any, safety: RunnerSafetyConfig, *
             continue
         _click_next(page)
         _post_action_settle(page, safety, coach_mode=coach_mode)
-        if coach_mode:
-            _wait_for_coach_overlay(
-                page,
-                timeout_ms=safety.coach_overlay_timeout_ms,
-                settle_ms=safety.coach_settle_ms,
-            )
         next_step = detect_step(page)
         if next_step and next_step["pageStepId"] == "s8_confirm":
             return
@@ -438,7 +447,7 @@ def _try_coach_interaction(page: Any, decision: PersonaDecision, *, read_ms: int
         """
         (mode) => {
           const shadow = document.querySelector("#uniqa-conversion-coach-root")?.shadowRoot;
-          const target = mode === "cta" ? shadow?.querySelector(".cta") : shadow?.querySelector(".dismiss");
+          const target = mode === "cta" ? shadow?.querySelector(".card-cta") : shadow?.querySelector(".card-dismiss");
           if (target instanceof HTMLButtonElement) {
             target.click();
           }
@@ -522,12 +531,52 @@ def _execute_step_action(
         return {"terminal": False, "element_key": "questionnaire_continue"}
 
     if step_id == "s8_confirm":
-        return {"terminal": True, "outcome": "advisor_handoff", "element_key": "consultationContact"}
+        return {"terminal": True, "outcome": ADVISOR_OUTCOME, "element_key": "consultationContact"}
 
     raise SelectorFailure(f"Unsupported step action execution for {step_id}")
 
 
-def _build_baseline_trace(
+def _initial_journey_state() -> dict[str, Any]:
+    return {
+        "insured_person": None,
+        "selected_coverage": [],
+        "selected_tariff": None,
+    }
+
+
+def _update_journey_state(journey_state: dict[str, Any], *, step_id: str, element_key: str | None) -> None:
+    if step_id == "s1_coverage_scope":
+        if element_key == "at_doctor":
+            journey_state["selected_coverage"] = ["doctor_visits"]
+        elif element_key == "hospital":
+            journey_state["selected_coverage"] = ["hospital"]
+        elif element_key == "both":
+            journey_state["selected_coverage"] = ["doctor_visits", "hospital"]
+    elif step_id == "s2_for_whom":
+        journey_state["insured_person"] = "other_persons" if element_key == "other_persons" else "myself"
+    elif step_id == "s4_initial_price" and element_key in {"start", "optimal", "opt_plus", "premium"}:
+        journey_state["selected_tariff"] = element_key
+
+
+def _classify_route_family(journey_state: dict[str, Any]) -> str:
+    coverage = set(journey_state.get("selected_coverage", []))
+    tariff = journey_state.get("selected_tariff")
+    if "hospital" in coverage:
+        return "advisor_coverage"
+    if journey_state.get("insured_person") == "other_persons":
+        return "advisor_other_persons"
+    if tariff in {"opt_plus", "premium"}:
+        return "advisor_tariff"
+    return "online_doctor"
+
+
+def _step_to_terminal_stage(step: dict[str, Any] | None) -> str:
+    if not step:
+        return "done"
+    return step.get("journeyStage") or "done"
+
+
+def _build_trace(
     *,
     session_id: str,
     metadata: dict[str, Any],
@@ -537,6 +586,8 @@ def _build_baseline_trace(
     shim_events: list[dict[str, Any]],
     profile: SessionProfile,
     terminal_outcome: str,
+    runtime_trace: dict[str, Any] | None,
+    coach_render_log: list[dict[str, Any]],
 ) -> dict[str, Any]:
     if events:
         events[-1]["terminal_outcome"] = terminal_outcome
@@ -544,14 +595,14 @@ def _build_baseline_trace(
         "session_id": session_id,
         "metadata": metadata,
         "events": events,
-        "decisions": [],
-        "exposures": [],
         "run_mode": metadata["run_mode"],
         "instrumentation_mode": metadata["instrumentation_mode"],
         "llm_decisions": llm_decisions,
         "artifacts": artifacts,
         "shim_events": shim_events,
         "profile": asdict(profile),
+        "runtime_trace": runtime_trace,
+        "coach_render_log": coach_render_log,
         "terminal_outcome": terminal_outcome,
     }
 
@@ -577,13 +628,15 @@ def run_live_session(*, persona_id: str, intention: str, experiment_id: str, see
     )
     llm_decisions: list[dict[str, Any]] = []
     artifacts: list[dict[str, Any]] = []
-    baseline_events: list[dict[str, Any]] = []
+    events: list[dict[str, Any]] = []
+    coach_render_log: list[dict[str, Any]] = []
     coach_interaction_seen = False
     current_context: dict[str, Any] = {}
+    journey_state = _initial_journey_state()
     session_dir = config.output_dir / session_id
     user_data_dir = session_dir / "chrome-profile"
     session_dir.mkdir(parents=True, exist_ok=True)
-    client = CoachApiClient(config.backend_url)
+    runtime_client = RuntimeApiClient(config.backend_url)
 
     with sync_playwright() as p:
         launch_args: list[str] = []
@@ -605,16 +658,57 @@ def run_live_session(*, persona_id: str, intention: str, experiment_id: str, see
             except Exception as exc:
                 raise PageLoadFailure(str(exc)) from exc
             dismiss_cookie_banner(page)
+            if config.execution_mode == "coach":
+                ready = wait_for_extension_ready(
+                    page,
+                    timeout_ms=max(5_000, safety.coach_overlay_timeout_ms * 3),
+                    settle_ms=safety.coach_settle_ms,
+                )
+                if not ready:
+                    state = read_extension_state(page)
+                    raise PageLoadFailure(f"Coach extension did not become ready: {state}")
 
             visited_step_count = 0
             terminal_outcome: str | None = None
             while visited_step_count < 12 and terminal_outcome is None:
                 step = _wait_for_step(page)
                 step_id = step["pageStepId"]
+                entered_at = _now_ms() - 1_000
                 current_context = derive_context(page, step, current_context)
                 artifacts.append(_step_artifacts(page, session_dir=session_dir, step_id=step_id, index=visited_step_count, context=current_context))
-                if config.execution_mode == "baseline":
-                    baseline_events.append(make_step_event(session_id=session_id, step_id=step_id, event_type="step_enter", runner_metadata=metadata))
+                events.append(make_step_event(session_id=session_id, step_id=step_id, event_type="step_enter", runner_metadata=metadata))
+
+                coach_state: dict[str, Any] | None = None
+                if config.execution_mode == "coach":
+                    wait_started = _now_ms()
+                    coach_state = wait_for_coach_cycle(
+                        page,
+                        step_id=step_id,
+                        entered_at=entered_at,
+                        timeout_ms=safety.coach_overlay_timeout_ms * 3,
+                        settle_ms=safety.coach_settle_ms,
+                    )
+                    waited_ms = _now_ms() - wait_started
+                    coach_render_log.append(
+                        {
+                            "step_id": step_id,
+                            "decision_state": coach_state.get("decisionState") if coach_state else "timeout",
+                            "play_id": coach_state.get("playId") if coach_state else None,
+                            "waited_ms": waited_ms,
+                            "rendered": bool(coach_state and coach_state.get("decisionState") == "rendered"),
+                        }
+                    )
+                    if coach_state and coach_state.get("decisionState") == "rendered":
+                        _append_runner_event(
+                            events,
+                            session_id=session_id,
+                            step_id=step_id,
+                            event_type="coach_impression",
+                            element_key=coach_state.get("playId"),
+                            raw_value={"play_id": coach_state.get("playId")},
+                            derived_context={"intervention_kind": coach_state.get("playId")},
+                            metadata=metadata,
+                        )
 
                 decision = llm_driver.decide(
                     persona_id=persona_id,
@@ -625,24 +719,30 @@ def run_live_session(*, persona_id: str, intention: str, experiment_id: str, see
                     history=llm_decisions,
                     coach_interaction_seen=coach_interaction_seen,
                 )
-                llm_decisions.append(decision.to_trace_row(decision_id=f"lld_{uuid.uuid4().hex[:12]}", history=[{"step_id": row["step_id"], "action": row["action"]} for row in llm_decisions[-4:]]))
-                if config.execution_mode == "coach":
-                    _wait_for_coach_overlay(
-                        page,
-                        timeout_ms=safety.coach_overlay_timeout_ms,
-                        settle_ms=safety.coach_settle_ms,
+                llm_decisions.append(
+                    decision.to_trace_row(
+                        decision_id=f"lld_{uuid.uuid4().hex[:12]}",
+                        history=[{"step_id": row["step_id"], "action": row["action"]} for row in llm_decisions[-4:]],
                     )
+                )
+
                 page.wait_for_timeout(_clamp(decision.dwell_ms, safety.min_think_ms, safety.max_think_ms))
-                if config.execution_mode == "coach":
-                    _wait_for_coach_overlay(
-                        page,
-                        timeout_ms=max(0, safety.coach_overlay_timeout_ms // 2),
-                        settle_ms=0,
-                    )
+                if coach_state and coach_state.get("decisionState") == "rendered":
                     interaction = _try_coach_interaction(page, decision, read_ms=safety.coach_read_ms)
                     coach_interaction_seen = coach_interaction_seen or interaction is not None
                     if interaction:
+                        _append_runner_event(
+                            events,
+                            session_id=session_id,
+                            step_id=step_id,
+                            event_type="coach_cta" if interaction == "cta" else "coach_dismiss",
+                            element_key=coach_state.get("playId"),
+                            raw_value={"interaction_mode": interaction, "play_id": coach_state.get("playId")},
+                            derived_context={"intervention_kind": coach_state.get("playId")},
+                            metadata=metadata,
+                        )
                         page.wait_for_timeout(safety.post_action_settle_ms)
+
                 execution = _execute_step_action(
                     page,
                     step_id=step_id,
@@ -651,69 +751,69 @@ def run_live_session(*, persona_id: str, intention: str, experiment_id: str, see
                     safety=safety,
                     coach_mode=config.execution_mode == "coach",
                 )
+                _update_journey_state(journey_state, step_id=step_id, element_key=execution.get("element_key"))
                 _post_action_settle(page, safety, coach_mode=config.execution_mode == "coach")
-                if config.execution_mode == "baseline":
-                    _append_baseline_event(
-                        baseline_events,
+                _append_runner_event(
+                    events,
+                    session_id=session_id,
+                    step_id=step_id,
+                    event_type="persona_action",
+                    element_key=execution.get("element_key"),
+                    raw_value={"action": decision.action, "reasoning": decision.reasoning, "dwell_ms": decision.dwell_ms},
+                    derived_context=current_context,
+                    metadata=metadata,
+                )
+                if execution.get("element_key") in {"hospital", "other_persons", "opt_plus", "premium"}:
+                    _append_runner_event(
+                        events,
                         session_id=session_id,
                         step_id=step_id,
-                        event_type="persona_action",
+                        event_type="out_of_scope_selected",
                         element_key=execution.get("element_key"),
-                        raw_value={"action": decision.action, "reasoning": decision.reasoning, "dwell_ms": decision.dwell_ms},
+                        raw_value={"action": decision.action},
                         derived_context=current_context,
                         metadata=metadata,
                     )
-                    if execution.get("element_key") in {"hospital", "other_persons", "opt_plus", "premium"}:
-                        _append_baseline_event(
-                            baseline_events,
-                            session_id=session_id,
-                            step_id=step_id,
-                            event_type="out_of_scope_selected",
-                            element_key=execution.get("element_key"),
-                            raw_value={"action": decision.action},
-                            derived_context=current_context,
-                            metadata=metadata,
-                        )
+
                 terminal_outcome = execution.get("outcome") or _terminal_outcome_for_element(execution.get("element_key"))
                 if terminal_outcome is None and step_id == "s8_confirm":
-                    terminal_outcome = "advisor_handoff"
+                    terminal_outcome = ADVISOR_OUTCOME
                 visited_step_count += 1
 
+            final_step = detect_step(page)
             if terminal_outcome is None:
-                terminal_outcome = "advisor_handoff" if detect_step(page) and detect_step(page)["pageStepId"] == "s8_confirm" else "abandoned"
+                terminal_outcome = ADVISOR_OUTCOME if final_step and final_step["pageStepId"] == "s8_confirm" else "abandoned"
+            terminal_outcome = _normalize_outcome(terminal_outcome)
 
-            page.wait_for_timeout(1_000)
+            runtime_trace: dict[str, Any] | None = None
             if config.execution_mode == "coach":
                 try:
-                    client.post_outcome({
-                        "session_id": session_id,
-                        "outcome": terminal_outcome,
-                        "terminal_step_id": detect_step(page)["pageStepId"] if detect_step(page) else None,
-                        "ended_at": _now_ms(),
-                        "final_visible_price": current_context.get("visiblePrice"),
-                        "price_delta": current_context.get("priceDelta"),
-                    })
-                    trace = client.fetch_session(session_id)
-                except (CoachApiError, ValueError) as exc:
+                    runtime_client.post_outcome(
+                        {
+                            "sessionId": session_id,
+                            "routeFamily": _classify_route_family(journey_state),
+                            "terminalStage": _step_to_terminal_stage(final_step),
+                            "outcome": terminal_outcome,
+                            "finalTariff": journey_state.get("selected_tariff"),
+                            "finalPriceMonthly": current_context.get("visiblePrice"),
+                            "decidedAt": _now_ms(),
+                        }
+                    )
+                    runtime_trace = runtime_client.fetch_session(session_id)
+                except (RuntimeApiError, ValueError) as exc:
                     raise BackendFailure(str(exc)) from exc
-                trace["metadata"] = metadata
-                trace["run_mode"] = metadata["run_mode"]
-                trace["instrumentation_mode"] = metadata["instrumentation_mode"]
-                trace["llm_decisions"] = llm_decisions
-                trace["artifacts"] = artifacts
-                trace["shim_events"] = read_runner_shim(page)
-                trace["profile"] = asdict(profile)
-                trace["terminal_outcome"] = terminal_outcome
-                return trace
-            return _build_baseline_trace(
+
+            return _build_trace(
                 session_id=session_id,
                 metadata=metadata,
-                events=baseline_events,
+                events=events,
                 llm_decisions=llm_decisions,
                 artifacts=artifacts,
                 shim_events=read_runner_shim(page),
                 profile=profile,
                 terminal_outcome=terminal_outcome,
+                runtime_trace=runtime_trace,
+                coach_render_log=coach_render_log,
             )
         finally:
             context.close()

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from pathlib import Path
 from typing import Any
 
@@ -213,6 +214,108 @@ def install_runner_shim(page: Any, *, preferred_session_id: str | None = None) -
 
 def read_runner_shim(page: Any) -> list[dict[str, Any]]:
     return page.evaluate("() => window.__uniqaRunnerTelemetry?.events ?? []")
+
+
+def read_extension_state(page: Any) -> dict[str, Any]:
+    return page.evaluate(
+        """
+        () => {
+          const root = document.querySelector("#uniqa-conversion-coach-root");
+          const state = window.__UNIQA_COACH_STATE__ || {};
+          const numberOrZero = (value) => {
+            const parsed = Number(value ?? 0);
+            return Number.isFinite(parsed) ? parsed : 0;
+          };
+          return {
+            activeActionIds: state.activeActionIds || [],
+            actionable: Boolean(state.actionable),
+            apiState: state.apiState || root?.dataset?.apiState || null,
+            cardCount: Number(state.cardCount ?? root?.dataset?.cardCount ?? 0),
+            currentStepId: state.currentStepId || root?.dataset?.currentStepId || null,
+            decisionState: state.decisionState || root?.dataset?.decisionState || "idle",
+            initialized: Boolean(state.initialized || root),
+            lastActionResult: state.lastActionResult || null,
+            lastRenderAt: Number(state.lastRenderAt ?? root?.dataset?.lastRenderAt ?? 0),
+            playId: state.playId || root?.dataset?.playId || null,
+            requestFinishedAt: numberOrZero(state.requestFinishedAt ?? root?.dataset?.requestFinishedAt),
+            requestStartedAt: numberOrZero(state.requestStartedAt ?? root?.dataset?.requestStartedAt),
+            layoutFallback: state.layoutFallback || root?.dataset?.layoutFallback || null,
+            renderState: state.renderState || root?.dataset?.renderState || null,
+            rootAttached: Boolean(root?.shadowRoot),
+          };
+        }
+        """
+    )
+
+
+def wait_for_extension_ready(page: Any, *, timeout_ms: int = 10_000, settle_ms: int = 150) -> bool:
+    started = time.time()
+    while (time.time() - started) * 1000 < timeout_ms:
+        try:
+            state = read_extension_state(page)
+            if state.get("rootAttached") and state.get("initialized") and state.get("apiState") in {"starting", "connected", "error"}:
+                if settle_ms > 0:
+                    page.wait_for_timeout(settle_ms)
+                return True
+        except Exception:
+            pass
+        page.wait_for_timeout(150)
+    return False
+
+
+def wait_for_coach_render(
+    page: Any,
+    *,
+    timeout_ms: int,
+    settle_ms: int = 0,
+    require_actionable: bool = True,
+) -> bool:
+    if timeout_ms <= 0:
+        return False
+    started = time.time()
+    while (time.time() - started) * 1000 < timeout_ms:
+        try:
+            state = read_extension_state(page)
+            has_card = state.get("cardCount", 0) > 0 and state.get("renderState") == "rendered"
+            is_actionable = bool(state.get("actionable")) or not require_actionable
+            if has_card and is_actionable:
+                if settle_ms > 0:
+                    page.wait_for_timeout(settle_ms)
+                return True
+        except Exception:
+            pass
+        page.wait_for_timeout(150)
+    return False
+
+
+def wait_for_coach_cycle(
+    page: Any,
+    *,
+    step_id: str,
+    entered_at: int,
+    timeout_ms: int,
+    settle_ms: int = 0,
+) -> dict[str, Any] | None:
+    if timeout_ms <= 0:
+        return None
+    started = time.time()
+    while (time.time() - started) * 1000 < timeout_ms:
+        try:
+            state = read_extension_state(page)
+            if state.get("currentStepId") != step_id:
+                page.wait_for_timeout(150)
+                continue
+            if int(state.get("requestFinishedAt", 0) or 0) < entered_at:
+                page.wait_for_timeout(150)
+                continue
+            if state.get("decisionState") in {"rendered", "empty", "error"}:
+                if settle_ms > 0:
+                    page.wait_for_timeout(settle_ms)
+                return state
+        except Exception:
+            pass
+        page.wait_for_timeout(150)
+    return None
 
 
 def dismiss_cookie_banner(page: Any) -> None:

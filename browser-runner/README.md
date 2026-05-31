@@ -11,7 +11,7 @@ Andrii-owned runner entry points for persona-driven UNIQA calculator sessions.
 Execution modes inside live runs:
 
 - `baseline`: no extension loaded, but a lightweight runner telemetry shim records comparable interaction events.
-- `coach`: loads the UNIQA extension, routes events into the existing coach API, and fetches the resulting backend session trace.
+- `coach`: loads the UNIQA extension, waits for the popup lifecycle on each step, posts a single runtime outcome, and embeds runtime replay into the local trace.
 
 ## Live Requirements
 
@@ -65,22 +65,19 @@ Each trace stores:
 - `shim_events`
 
 
-## Backend V2 Client
+## Runtime Client
 
-`backend_client.py` wraps Farhan's v2 API for runner-side telemetry and replay integration:
+`backend_client.py` wraps the clean runtime API used by coach-mode runs:
 
-- `POST /api/v2/events`
-- `POST /api/v2/inference`
-- `POST /api/v2/exposures`
-- `POST /api/v2/outcomes`
-- `GET /api/v2/sessions/:id`
+- `POST /api/runtime/outcome`
+- `GET /api/runtime/sessions/:id`
 
-Payload normalizers default missing optional event fields to the agreed anonymous schema and reject invalid terminal outcomes before network calls.
+The runner owns the trace artifact locally. Runtime replay is supplemental and lands in the trace as `runtime_trace`.
 
 
 ## Event Factory
 
-`event_factory.py` builds canonical v2 event payloads for mock/live runner telemetry. It mirrors David's extension payload shape and derives flags for:
+`event_factory.py` builds canonical runner events for mock/live telemetry. It derives flags for:
 
 - `tariff_click_oos`
 - `path_oos`

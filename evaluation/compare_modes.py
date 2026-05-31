@@ -9,7 +9,14 @@ from metrics import compare_dropoff_reduction, compute_metrics
 
 def load_traces(path: Path) -> list[dict]:
     if path.is_dir():
-        return [json.loads(item.read_text()) for item in sorted(path.glob("*.json"))]
+        traces = []
+        for item in sorted(path.glob("*.json")):
+            if item.name == "batch-summary.json":
+                continue
+            payload = json.loads(item.read_text())
+            if isinstance(payload, dict) and payload.get("session_id"):
+                traces.append(payload)
+        return traces
     data = json.loads(path.read_text())
     return data if isinstance(data, list) else [data]
 

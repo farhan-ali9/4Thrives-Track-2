@@ -1,7 +1,7 @@
 [
   {
     "pageStepId": "s1_coverage_scope",
-    "coachStepId": "s1_coverage_scope",
+    "journeyStage": "coverage_choice",
     "verified": true,
     "enabled": true,
     "match": {
@@ -17,6 +17,7 @@
       "outOfScopePathChoices": ["input[type='checkbox']"]
     },
     "extractors": [
+      { "key": "selectedCoverage", "kind": "selectedCoverage", "selectors": ["input[type='checkbox']"] },
       { "key": "fieldCompletion", "kind": "fieldCompletion", "selectors": ["input[type='checkbox']"] },
       { "key": "validationErrorCount", "kind": "validationErrorCount" },
       { "key": "sessionDurationMs", "kind": "sessionTiming" }
@@ -25,7 +26,7 @@
   },
   {
     "pageStepId": "s2_for_whom",
-    "coachStepId": "s2_for_whom",
+    "journeyStage": "insured_person",
     "verified": true,
     "enabled": true,
     "match": {
@@ -40,6 +41,7 @@
       "outOfScopePathChoices": ["[data-cy='insuredPartyOther']"]
     },
     "extractors": [
+      { "key": "insuredPerson", "kind": "insuredPerson", "selectors": ["input[type='radio']"] },
       { "key": "fieldCompletion", "kind": "fieldCompletion", "selectors": ["input[type='radio']"] },
       { "key": "validationErrorCount", "kind": "validationErrorCount" },
       { "key": "sessionDurationMs", "kind": "sessionTiming" }
@@ -48,7 +50,7 @@
   },
   {
     "pageStepId": "s3_quote_basics",
-    "coachStepId": "s3_personal_data",
+    "journeyStage": "quote_basics",
     "verified": true,
     "enabled": true,
     "match": {
@@ -84,7 +86,7 @@
   },
   {
     "pageStepId": "s4_initial_price",
-    "coachStepId": "s4_initial_price",
+    "journeyStage": "tariff_choice",
     "verified": true,
     "enabled": true,
     "match": {
@@ -107,8 +109,8 @@
     },
     "extractors": [
       { "key": "selectedTariff", "kind": "selectedTariff", "selectors": ["[aria-label^='Wählen ']"] },
-      { "key": "visiblePrice", "kind": "visiblePrice", "selectors": ["table"] },
-      { "key": "priceDelta", "kind": "priceDelta", "selectors": ["table"] },
+      { "key": "visiblePriceMonthly", "kind": "visiblePriceMonthly", "selectors": ["table"] },
+      { "key": "priceDeltaMonthly", "kind": "priceDeltaMonthly", "selectors": ["table"] },
       { "key": "validationErrorCount", "kind": "validationErrorCount" },
       { "key": "sessionDurationMs", "kind": "sessionTiming" }
     ],
@@ -116,7 +118,7 @@
   },
   {
     "pageStepId": "s5_add_ons",
-    "coachStepId": "s5_add_ons",
+    "journeyStage": "options",
     "verified": true,
     "enabled": true,
     "match": {
@@ -135,8 +137,8 @@
     },
     "extractors": [
       { "key": "selectedAddOns", "kind": "selectedAddOns", "selectors": ["input[type='checkbox']"] },
-      { "key": "visiblePrice", "kind": "visiblePrice", "selectors": ["body"] },
-      { "key": "priceDelta", "kind": "priceDelta", "selectors": ["body"] },
+      { "key": "visiblePriceMonthly", "kind": "visiblePriceMonthly", "selectors": ["body"] },
+      { "key": "priceDeltaMonthly", "kind": "priceDeltaMonthly", "selectors": ["body"] },
       { "key": "fieldCompletion", "kind": "fieldCompletion", "selectors": ["input[type='checkbox']"] },
       { "key": "validationErrorCount", "kind": "validationErrorCount" },
       { "key": "sessionDurationMs", "kind": "sessionTiming" }
@@ -145,7 +147,7 @@
   },
   {
     "pageStepId": "s6_personal_medical_data",
-    "coachStepId": "s6_health_questions",
+    "journeyStage": "health_data",
     "verified": true,
     "enabled": true,
     "match": {
@@ -163,15 +165,15 @@
     "extractors": [
       { "key": "fieldCompletion", "kind": "fieldCompletion", "selectors": ["input", "textarea"] },
       { "key": "validationErrorCount", "kind": "validationErrorCount" },
-      { "key": "visiblePrice", "kind": "visiblePrice", "selectors": ["body"] },
-      { "key": "priceDelta", "kind": "priceDelta", "selectors": ["body"] },
+      { "key": "visiblePriceMonthly", "kind": "visiblePriceMonthly", "selectors": ["body"] },
+      { "key": "priceDeltaMonthly", "kind": "priceDeltaMonthly", "selectors": ["body"] },
       { "key": "sessionDurationMs", "kind": "sessionTiming" }
     ],
     "injectionAnchor": "inline-top-of-step"
   },
   {
     "pageStepId": "s7_final_price",
-    "coachStepId": "s7_final_price",
+    "journeyStage": "price_review",
     "verified": true,
     "enabled": true,
     "match": {
@@ -203,8 +205,8 @@
           "[data-cy='rejectedApplication'] input[type='radio']"
         ]
       },
-      { "key": "visiblePrice", "kind": "visiblePrice", "selectors": ["body"] },
-      { "key": "priceDelta", "kind": "priceDelta", "selectors": ["body"] },
+      { "key": "visiblePriceMonthly", "kind": "visiblePriceMonthly", "selectors": ["body"] },
+      { "key": "priceDeltaMonthly", "kind": "priceDeltaMonthly", "selectors": ["body"] },
       { "key": "validationErrorCount", "kind": "validationErrorCount" },
       { "key": "sessionDurationMs", "kind": "sessionTiming" }
     ],
@@ -212,7 +214,7 @@
   },
   {
     "pageStepId": "s8_confirm",
-    "coachStepId": "s8_confirm",
+    "journeyStage": "advisor_contact",
     "verified": true,
     "enabled": true,
     "match": {
@@ -238,8 +240,8 @@
         "kind": "fieldCompletion",
         "selectors": ["[data-cy='consultationContact'] input[type='radio']"]
       },
-      { "key": "visiblePrice", "kind": "visiblePrice", "selectors": ["body"] },
-      { "key": "priceDelta", "kind": "priceDelta", "selectors": ["body"] },
+      { "key": "visiblePriceMonthly", "kind": "visiblePriceMonthly", "selectors": ["body"] },
+      { "key": "priceDeltaMonthly", "kind": "priceDeltaMonthly", "selectors": ["body"] },
       { "key": "validationErrorCount", "kind": "validationErrorCount" },
       { "key": "sessionDurationMs", "kind": "sessionTiming" }
     ],
