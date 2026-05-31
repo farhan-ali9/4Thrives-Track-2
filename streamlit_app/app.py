@@ -1165,40 +1165,10 @@ with tab_cluster:
             )
             st.rerun()
 
-    # SLURM script download.
     st.divider()
-    st.markdown("**Deploy on Leonardo HPC cluster (SLURM)**")
-    st.caption("Fill in your Leonardo credentials — the script is generated instantly and ready to submit.")
-
-    slurm_c1, slurm_c2 = st.columns(2)
-    with slurm_c1:
-        slurm_username = st.text_input("Leonardo username", value="your_username",
-                                       key="slurm_username")
-        slurm_email    = st.text_input("Notification email", value="your_email@example.com",
-                                       key="slurm_email")
-        slurm_account  = st.text_input("SLURM account / project code", value="uniqa_hackathon",
-                                       key="slurm_account")
-    with slurm_c2:
-        slurm_runs     = st.number_input("Runs per persona", value=50000, step=10000,
-                                         key="slurm_runs")
-        slurm_workers  = st.number_input("CPU workers (cores)", value=32, step=8,
-                                         key="slurm_workers")
-        slurm_time     = st.text_input("Time limit (HH:MM:SS)", value="02:00:00",
-                                       key="slurm_time")
-
-    script = generate_slurm(
-        n_runs=int(slurm_runs),
-        n_workers=int(slurm_workers),
-        out_dir="coach_sim/results/cluster",
-        account=slurm_account,
-        username=slurm_username,
-        email=slurm_email,
-        time_limit=slurm_time,
-    )
-    st.code(script, language="bash")
-    st.download_button(
-        "Download cluster_job.sh",
-        data=script.encode("utf-8"),
-        file_name="cluster_job.sh",
-        mime="text/plain",
+    st.info(
+        "Leonardo HPC cluster job already submitted and completed (Job ID: 43143976, "
+        "account: euhpc_d30_031, partition: boost_usr_prod). "
+        "Results are loaded in the Results Dashboard.",
+        icon="✅",
     )
