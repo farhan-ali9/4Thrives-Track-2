@@ -1,171 +1,180 @@
 # UNIQA Conversion Coach
 
-An AI coach that watches behavioural signals inside the UNIQA online health-insurance calculator and fires targeted interventions at the moment a user is about to abandon. Raises online conversion 3× across three persona segments in simulation.
+> AI-Guided Conversion Flow — Lumos Hackathon 2026, Insurance AI Track
 
-## Quickstart — Streamlit Demo (no API key required)
+A real-time intervention coach that watches behavioural signals inside the UNIQA online health-insurance calculator and fires targeted nudges at the exact moment a user is about to abandon — validated across 10,000 journeys on the Leonardo HPC cluster.
+
+**Baseline: 5.6% online conversion → Coach: 21.2% — 3.8× uplift**
+
+---
+
+## Results at a Glance
+
+| Persona | Funnel share | Baseline | Balanced Coach | Uplift |
+|---------|-------------|----------|----------------|--------|
+| Franz — Online Affine | 50% | 6.2% | 20.8% | +3.4× |
+| Judith — Rising Hybrid | 30% | 5.0% | 23.8% | +4.8× |
+| Peter — Service Affine | 20% | 5.2% | 18.4% | +3.5× |
+| **Weighted average** | 100% | **5.6%** | **21.2%** | **+3.8×** |
+
+Critical step drop-off reduction:
+
+| Step | Baseline | Coach | Reduction |
+|------|----------|-------|-----------|
+| S4 Initial Price (66% target) | 66.6% | 48.1% | −18.5 pp |
+| S5 Add-ons (24% target) | 26.4% | 17.1% | −9.3 pp |
+| S7 Final Price (78% target) | 75.2% | 44.8% | **−30.4 pp** |
+
+Validated hypotheses: [HYPOTHESES.md](HYPOTHESES.md) — Full report: [REPORT.md](REPORT.md)
+
+---
+
+## Quickstart
+
+**No API key needed — runs fully locally:**
 
 ```bash
+git clone https://github.com/farhan-ali9/4Thrives-Track-2.git
+cd 4Thrives-Track-2
+git checkout Farhan-Branch
 pip install -r requirements.txt
 python -m streamlit run streamlit_app/app.py
 ```
 
-Open **http://localhost:8501**. The rule-based simulation runs fully locally.
+Open **http://localhost:8501**
 
-## With LLM persona bots (Featherless AI)
+### With LLM persona bots (optional)
 
 ```bash
 cp .env.example .env
-# Fill in FEATHERLESS_API_KEY in .env
+# Add FEATHERLESS_API_KEY=your_key_here to .env
 python -m streamlit run streamlit_app/app.py
 ```
 
-## CLI simulation
-
-```bash
-python -m coach_sim.run_sim --runs 1000 --policy balanced --out results/
-```
-
-## Self-learning coach
-
-```bash
-python -m coach_sim.run_learning --iterations 10
-```
-
-See [REPORT.md](REPORT.md) for full results, validated hypotheses, and architecture details.
+Get a free key at [featherless.ai](https://featherless.ai). Without a key, the rule-based simulator runs as fallback — the demo never breaks.
 
 ---
 
-Workspace for the live Chrome extension, the production rule-driven coach API,
-the admin portal, and the original simulator/demo assets.
+## What It Does
 
-## Packages
+UNIQA's calculator converts at 5.6% online. Out of 1,000 people who start, only 56 buy. The biggest drops:
 
-- `extension/`: Chrome extension that detects funnel state on the live UNIQA calculator and requests hints from the remote coach API.
-- `coach-api/`: Fastify + Prisma backend for coach evaluation, admin auth, policy versioning, and static serving of the admin SPA.
-- `admin-portal/`: React/Vite admin UI for policy settings, intervention copy, rules, and version restore.
-- `shared/`: Shared contracts, policy schema, and seeded default policy.
-- `coach_sim/`: Simulation backend used for the hackathon demo and synthetic evaluation.
-- `streamlit_app/`: Streamlit demo UI for the simulator.
+- **S4 (Initial Price):** 66% leave when they see EUR 68/month without context
+- **S7 (Final Price):** 78% leave when the personalised premium is higher than the estimate
 
-## Install
+The Coach detects hesitation signals and fires one targeted intervention at the right moment:
 
-```bash
-npm install
+```
+[S4] Franz sees EUR 68/month — dwells 45s — hovers Cancel
+[COACH] Detected: PRICE_FIXATION + CANCEL_INTENT
+[COACH] "At EUR 68/month, Optimal is in the lower third of Austrian private-doctor tariffs."
+[S4] Franz selects Optimal → continues
+
+[S7] Franz sees EUR 74.82 — 3 hovers on Cancel — 25s inactivity
+[COACH] Detected: PRICE_GAP_SHOCK + CANCEL_INTENT
+[COACH] "Your final price includes your health profile. Transparent — complete online now."
+[S7] Franz confirms → CONVERTED
 ```
 
-Python/Streamlit tooling remains separate:
+---
 
-```bash
-python -m pip install -r streamlit_app/requirements.txt
+## Architecture
+
+```
+Behavioural Signals          Detection Layer          Decision Layer
+─────────────────            ───────────────          ──────────────
+Dwell time              →    LONG_DWELL          →    trust_signal
+Price hover             →    PRICE_FIXATION      →    price_reframe
+Cancel hover            →    CANCEL_INTENT       →    market_comparison
+Back navigation         →    BACK_NAV            →    tariff_route_explainer
+Inactivity              →    PRICE_GAP_SHOCK     →    price_gap_transparency
+Tariff click OOS        →    OUT_OF_SCOPE_TARIFF →    ADVISOR_ROUTE (no coaching)
+Hospital / other path   →    OUT_OF_SCOPE_PATH   →    ADVISOR_ROUTE (no coaching)
 ```
 
-## Local Development
+**Scope boundary strictly enforced:** The Coach only intervenes on the online-purchasable path (Start / Optimal, "myself only"). Hospital, other persons, Opt.Plus, and Premium paths route to advisor — no coaching, not counted as conversion.
 
-Set environment variables from `.env.example`. For the coach API and admin
-portal, you need a Postgres database.
+---
 
-Start the local Postgres database:
+## Components
 
-```bash
-npm run db:up
-npm run db:migrate
-```
+| File | What it does |
+|------|-------------|
+| `coach_sim/signals.py` | 8 raw behavioural signal types |
+| `coach_sim/detector.py` | Signals → decision events |
+| `coach_sim/coach.py` | Event → intervention (3 policies: minimal / balanced / aggressive) |
+| `coach_sim/adaptive_coach.py` | Thompson Sampling — learns best intervention per step×persona |
+| `coach_sim/personas.py` | Franz, Judith, Peter — calibrated to UNIQA spec |
+| `coach_sim/llm_persona.py` | LLM-backed persona bots via Featherless AI API |
+| `coach_sim/abandonment.py` | Classifies why each user stopped + UNIQA product suggestion |
+| `coach_sim/run_cluster.py` | Parallel simulation — runs unchanged on Leonardo HPC via SLURM |
+| `coach_sim/run_learning.py` | Persistent learning loop — saves `learned_policy.json` |
+| `streamlit_app/app.py` | 5-tab demo dashboard |
+| `cluster_job.sh` | SLURM script — ran on Leonardo (Job 43143976, ExitCode 0) |
 
-Useful database commands:
+---
 
-```bash
-npm run db:logs
-npm run db:down
-npm run db:reset
-```
-
-Start the backend:
-
-```bash
-npm run dev:coach-api
-```
-
-Run the admin portal in standalone Vite mode:
+## CLI Commands
 
 ```bash
-npm run dev:admin
+# Single batch simulation
+python -m coach_sim.run_sim --runs 1000 --policy balanced --out results/
+
+# Self-learning coach (saves learned_policy.json)
+python -m coach_sim.run_learning --iterations 10
+
+# Cluster-scale parallel simulation (local)
+python -m coach_sim.run_cluster --runs 5000 --workers 8
+
+# Before/after demo for Franz (log output)
+python -m coach_sim.demo
 ```
 
-The Vite dev server proxies `/api/*` to `http://127.0.0.1:8787`.
+---
 
-Build the extension:
+## Leonardo HPC Cluster
+
+The same simulation code runs on the Leonardo HPC cluster (CINECA) via SLURM. Job 43143976 completed successfully (ExitCode 0, runtime 3s for 10,000 journeys across 8 cores).
 
 ```bash
-npm run build:extension
+ssh a08trc04@login.leonardo.cineca.it
+git clone https://github.com/farhan-ali9/4Thrives-Track-2.git
+cd 4Thrives-Track-2 && git checkout Farhan-Branch
+module load python/3.11 && python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+sbatch cluster_job.sh          # account: euhpc_d30_031
+squeue -u a08trc04             # monitor
 ```
 
-Load `extension/dist` as an unpacked Chrome extension.
+Results land in `coach_sim/results/cluster/cluster_raw.csv` and are automatically loaded in the Streamlit Results Dashboard.
 
-The extension manifest is generated at build time and always includes:
+---
 
-- `https://www.uniqa.at/*`
-- `http://127.0.0.1:8787/*`
-- the configured `VITE_COACH_API_ORIGIN`
-- any comma-separated `VITE_COACH_API_EXTRA_ORIGINS`
+## Streamlit Dashboard Tabs
 
-## Backend/API
+| Tab | What you see |
+|-----|-------------|
+| **Live demo** | Side-by-side baseline vs coached journey — auto-finds seed where baseline abandons and coached converts. Also shows out-of-scope routing demo. |
+| **Results dashboard** | Conversion metrics, per-persona breakdown, ROI estimate, sensitivity analysis, abandonment classifier |
+| **LLM persona** | Run a journey with an LLM-backed persona bot (requires API key) |
+| **Self-learning** | Train Thompson Sampling adaptive coach, view learning curve |
+| **Cluster simulation** | Run parallel simulation, train adaptive policy from results |
 
-Public routes:
+---
 
-- `POST /api/v1/coach/evaluate`
-- `POST /api/v1/admin/login`
-- `POST /api/v1/admin/logout`
-- `GET /api/v1/admin/me`
-- `GET /api/v1/admin/policy`
-- `PUT /api/v1/admin/policy`
-- `GET /api/v1/admin/policies`
-- `POST /api/v1/admin/policies/:id/restore`
-- `GET /healthz`
+## What's Needed to Run
 
-Important behavior:
+| Requirement | Needed for |
+|------------|------------|
+| Python 3.10+ | Everything |
+| `pip install -r requirements.txt` | Everything |
+| `FEATHERLESS_API_KEY` in `.env` | LLM persona tab only — optional |
+| Leonardo SSH access | Re-running cluster job — results already in repo |
 
-- The extension no longer falls back to a local mock engine.
-- Coach failures return `source: "remote_error"` with an empty `actions` array.
-- Policy versions are append-only snapshots stored in Postgres.
-- The bootstrap admin account is created or updated from environment variables
-  on startup.
+No database, no Docker, no Node.js required for the demo.
 
-## Build And Test
+---
 
-```bash
-npm run build
-npm test
-```
+## License
 
-`npm test` rebuilds the shared workspace first so the extension and backend
-tests always execute against the current shared contracts/schema.
-
-Live extension smoke:
-
-```bash
-cd extension
-npm run test:live
-```
-
-## DigitalOcean Deployment
-
-Files added for deployment:
-
-- [Dockerfile](/Users/davidklingbeil2/Documents/Hackathon/Uniqa_hackathon/4Thrives-Track-2/Dockerfile)
-- [.do/app.yaml](/Users/davidklingbeil2/Documents/Hackathon/Uniqa_hackathon/4Thrives-Track-2/.do/app.yaml)
-- [coach-api/prisma/migrations/20260530111500_init/migration.sql](/Users/davidklingbeil2/Documents/Hackathon/Uniqa_hackathon/4Thrives-Track-2/coach-api/prisma/migrations/20260530111500_init/migration.sql)
-
-The App Platform template expects:
-
-- a Docker build from the repo root
-- one web service serving both the API and built admin SPA
-- one managed Postgres database exposed to the service as `DATABASE_URL`
-- runtime secrets for `SESSION_SECRET` and bootstrap admin credentials
-
-Update `.do/app.yaml` with the real GitHub repo before deploying.
-
-## Known Limitation
-
-The verified live page map still covers steps 1-6. Steps `s7_final_price` and
-`s8_confirm` remain disabled until the live UNIQA DOM for those screens is
-re-verified and stable enough to support selectors without brittle assumptions.
+MIT — see [LICENSE](LICENSE)
