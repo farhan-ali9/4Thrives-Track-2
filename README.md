@@ -135,6 +135,28 @@ The repo now exposes one CLI for live simulation, dataset building, training, ev
 ./uniqa-pipeline evaluate --runner-mode validation
 ```
 
+### A/B Comparison (baseline vs coach)
+
+Run both groups and generate a report in one command:
+
+```bash
+bash scripts/run_ab_comparison.sh [SESSIONS_PER_GROUP] [EXPERIMENT_NAME]
+# e.g.
+bash scripts/run_ab_comparison.sh 12 my-experiment
+```
+
+Or compare existing trace directories:
+
+```bash
+./uniqa-pipeline compare-ab \
+  --baseline artifacts/browser-runs/my-experiment/baseline \
+  --treatment artifacts/browser-runs/my-experiment/coach \
+  --output-dir artifacts/ab-reports/my-experiment \
+  --experiment my-experiment
+```
+
+Output: `artifacts/ab-reports/<experiment>/comparison.md` and `comparison.json`.
+
 Trace files now include runner-owned LLM decision logs, per-step screenshots and DOM snapshots, and a normalized `run_mode` / `instrumentation_mode` split so baseline and coached sessions can be used together.
 
 The local-machine workflow is now the primary path:

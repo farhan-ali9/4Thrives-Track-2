@@ -28,6 +28,7 @@ from evaluate_user_policy import evaluate_user_policy
 from metrics import compare_dropoff_reduction, compute_metrics
 from run_batch import PERSONA_MATRIX
 from trace_store import load_traces
+from generate_ab_report import build_markdown, load_traces as load_ab_traces
 
 
 FEATHERLESS_CHAT_COMPLETIONS_URL = "https://api.featherless.ai/v1/chat/completions"
@@ -421,6 +422,27 @@ def cmd_local_full_loop(args: argparse.Namespace) -> dict[str, object]:
     }
 
 
+def cmd_compare_ab(args: argparse.Namespace) -> dict[str, object]:
+    baseline_traces = load_ab_traces(args.baseline)
+    treatment_traces = load_ab_traces(args.treatment)
+    baseline = compute_metrics(baseline_traces)
+    treatment = compute_metrics(treatment_traces)
+    delta = compare_dropoff_reduction(baseline, treatment)
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    result = {"experiment": args.experiment, "baseline": baseline, "treatment": treatment, "delta": delta}
+    (args.output_dir / "comparison.json").write_text(json.dumps(result, indent=2, sort_keys=True, default=str))
+    md = build_markdown(
+        experiment=args.experiment,
+        baseline=baseline,
+        treatment=treatment,
+        delta=delta,
+        baseline_count=len(baseline_traces),
+        treatment_count=len(treatment_traces),
+    )
+    (args.output_dir / "comparison.md").write_text(md)
+    return result
+
+
 def cmd_leonardo_submit(args: argparse.Namespace) -> dict[str, object]:
     script = LEONARDO_JOB_SCRIPTS[args.job]
     if not script.exists():
@@ -508,7 +530,14 @@ def build_parser() -> argparse.ArgumentParser:
     local_full.add_argument("--evaluation-runner-mode", choices=("mock", "validation", "bulk"), default=os.getenv("EVALUATION_RUNNER_MODE", "mock"))
     local_full.add_argument("--evaluation-sessions-per-mode", type=int, default=_env_int("EVALUATION_SESSIONS_PER_MODE", 6))
     local_full.add_argument("--evaluation-modes", default=os.getenv("EVALUATION_MODES", "baseline,rule_based,trainable"))
-    local_full.set_defaults(func=cmd_local_full)
+    local_full.set_defaults(func=cmd_local_full_loop)
+
+    compare_ab = subparsers.add_parser("compare-ab", help="Compare baseline vs coach trace dirs and write a report")
+    compare_ab.add_argument("--baseline", type=Path, required=True, help="Baseline trace dir")
+    compare_ab.add_argument("--treatment", type=Path, required=True, help="Coach trace dir")
+    compare_ab.add_argument("--output-dir", type=Path, default=Path("artifacts/ab-reports/latest"))
+    compare_ab.add_argument("--experiment", default="ab-comparison")
+    compare_ab.set_defaults(func=cmd_compare_ab)
 
     leonardo = subparsers.add_parser("leonardo-submit", help="Submit a prepared Slurm job on Leonardo")
     leonardo.add_argument("--job", choices=tuple(LEONARDO_JOB_SCRIPTS), required=True)

@@ -17,8 +17,4 @@ if [[ "$MODE" == "coach" ]]; then
   require_coach_api
 fi
 
-<<<<<<< HEAD
-(cd "$ROOT" && "$PYTHON_BIN" uniqa_pipeline.py validate-live --execution-mode "$MODE" --sessions "$SESSIONS" --experiment-id "$EXPERIMENT_ID")
-=======
-(cd "$ROOT" && ./uniqa-pipeline validate-live --execution-mode "$MODE" --sessions "$SESSIONS" --experiment-id "$EXPERIMENT_ID")
->>>>>>> f47399366750fed975c87ee7210f78129c1efa4b
+(cd "$ROOT" && python3 uniqa_pipeline.py validate-live --execution-mode "$MODE" --sessions "$SESSIONS" --experiment-id "$EXPERIMENT_ID")
