@@ -38,6 +38,7 @@ git clone https://github.com/farhan-ali9/4Thrives-Track-2.git
 cd 4Thrives-Track-2
 git checkout Farhan-Branch
 pip install -r requirements.txt
+pip install -e .
 python -m streamlit run streamlit_app/app.py
 ```
 
